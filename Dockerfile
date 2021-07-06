@@ -3,7 +3,7 @@ WORKDIR /data/anabot
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM lukemathwalker/cargo-chef as chacher
+FROM lukemathwalker/cargo-chef as cacher
 WORKDIR /data/anabot
 COPY --from=planner /data/anabot/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
