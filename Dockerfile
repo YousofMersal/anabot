@@ -12,9 +12,9 @@ FROM rust:latest as builder
 WORKDIR /data/anabot
 COPY . . 
 #Copy cache'd deps'
-COPY --form=cacher /data/anabot/target /target
-COPY --form=cacher $CARGO_HOME $CARGO_HOME
-run cargo build --release --bin anabot
+COPY --from=cacher /data/anabot/target /target
+COPY --from=cacher $CARGO_HOME $CARGO_HOME
+RUN cargo build --release --bin anabot
 
 FROM debian:buster-slim as runtime
 WORKDIR /data/anabot
