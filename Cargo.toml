@@ -16,7 +16,6 @@ scheduler = {path = "../scheduler"}
 
 [dependencies.serenity]
 git = "https://github.com/serenity-rs/serenity"
-branch = "current"
+version = "0.10.9"
 default-features = false
-diesel = { version = "1.4.4", features = ["postgres"] }
-features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_api"]
+features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_api", "utils"]

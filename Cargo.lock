@@ -965,8 +965,8 @@ dependencies = [
 
 [[package]]
 name = "serenity"
-version = "0.10.8"
-source = "git+https://github.com/serenity-rs/serenity?branch=current#ce97f9e72fa81c9c7aa5969051619b28bd8e755b"
+version = "0.10.9"
+source = "git+https://github.com/serenity-rs/serenity#a576cc0fd158a29e238ec15034d3919c3b26dbab"
 dependencies = [
  "async-trait",
  "async-tungstenite",
