@@ -1,16 +1,15 @@
-#[macro_use]
-extern crate diesel;
 mod models;
-mod schema;
+use crate::models::*;
 
-use self::models::*;
-use diesel::prelude::*;
+#[macro_use]
+extern crate sqlx;
+
 use dotenv;
+use scheduler::JobScheduler;
 #[allow(unused_imports)]
 use serenity::{
     async_trait,
     model::{
-        channel::Message,
         gateway::Ready,
         guild::Guild,
         id::GuildId,
@@ -20,14 +19,14 @@ use serenity::{
                 ApplicationCommandOptionType, ApplicationCommandPermission,
                 ApplicationCommandPermissionData, ApplicationCommandPermissionType,
             },
-            Interaction, InteractionApplicationCommandCallbackDataFlags, InteractionResponseType,
+            Interaction, InteractionResponseType,
         },
-        Permissions,
     },
     prelude::*,
 };
-use std::{collections::HashSet, env};
+use std::{collections::HashSet, env, sync::Arc};
 
+// Main async function that imports env variables, and boots up the discord bot & the database.
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
@@ -55,6 +54,14 @@ async fn main() {
         .await
         .expect("Error creating client");
 
+    // Insert database pool into the global contex
+    {
+        let mut data = client.data.write().await;
+
+        data.insert::<DB>(Arc::new(establish_db_connection().await));
+        data.insert::<Schedule>(Arc::new(JobScheduler::new()));
+    }
+
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
@@ -64,28 +71,53 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
+    //Fires every time a command is called from discord
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         //let admins = vec!["181477689708904448", "224154198860759042"];
+        let data = {
+            let data_read = &ctx.data.read().await;
 
-        let db_conn: PgConnection = establish_db_connection();
+            data_read
+                .get::<DB>()
+                .expect("Something went wrong gettnig the database connection")
+                .clone()
+        };
+
+        //Check which command was called and fire corresponding action
         if let Interaction::ApplicationCommand(command) = interaction {
             let content = match command.data.name.as_str() {
-                "timer" => "Hey, I'm alive!".to_string(),
+                "timer" => {
+                    "Hey, I'm alive!".to_string()
+                    //
+                }
                 "list" => {
                     let mut res = "Listing timers and their id's: \n".to_owned();
                     res = res.to_owned() + "-----------------\n";
-                    let db_results = retrieve_timers(&db_conn);
-                    for timer in &db_results {
-                        res = res + "id: " + &timer.id.to_string() + "\n";
-                        res = res + "title: " + &timer.title.to_string() + "\n";
-                        res = res + "recurring: " + &timer.recurring.to_string() + "\n";
-                    }
-
-                    if db_results.is_empty() {
-                        "No timers currently set".to_owned()
+                    if let Ok(db_res) = get_timers(&data).await {
+                        if db_res.is_empty() {
+                            res.clear();
+                            res =
+                                "No timers in the database yet! Use the /timer command to add one!"
+                                    .to_string();
+                        } else {
+                            for timer in &db_res {
+                                res = res + "id: " + &timer.id.to_string() + "\n";
+                                res = res + "title: " + &timer.title.to_string() + "\n";
+                                res = res + "recurring: " + &timer.recurring.to_string() + "\n";
+                            }
+                        };
                     } else {
-                        res
+                        res = "Something went wrong while getting timers,
+                          try agian later.
+                          If problem persists contact bot maintainer at yousof777@gmail.com
+                          or on discord for support."
+                            .to_string();
                     }
+                    res
+                }
+                "delete" => {
+                    //
+                    "test".to_owned()
                 }
                 _ => "not implemented :(".to_string(),
             };
@@ -104,9 +136,20 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-
         //let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {commands}).await;
+        let pool = {
+            let data_read = &ctx.data.read().await;
+
+            data_read
+                .get::<DB>()
+                .expect("Something went wrong gettnig the database connection")
+                .clone()
+        };
+
+        let res_timers = get_timers(&pool).await;
+
+        if let Ok(timers) = res_timers {}
+
         ctx.set_presence(
             Some(serenity::model::gateway::Activity::playing(
                 "The waiting game",
@@ -124,15 +167,8 @@ impl EventHandler for Handler {
             })
             .await
             .unwrap();
+        println!("{} is connected!", ready.user.name);
     }
-}
-
-fn retrieve_timers(conn: &PgConnection) -> Vec<Timer> {
-    use crate::schema::timers::dsl::*;
-
-    timers
-        .load::<Timer>(conn)
-        .expect("Something Went wrong while retriveving timers")
 }
 
 fn establish_discord_connection() -> (serenity::http::Http, String) {
@@ -143,9 +179,4 @@ fn establish_discord_connection() -> (serenity::http::Http, String) {
     };
 
     (serenity::http::Http::new_with_token(&token), token)
-}
-
-fn establish_db_connection() -> PgConnection {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    PgConnection::establish(&database_url).expect("Error connection to db")
 }
