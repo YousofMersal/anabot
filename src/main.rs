@@ -1,18 +1,21 @@
-mod models;
-use crate::models::*;
+mod db;
+mod handler;
+use crate::db::*;
+use handler::*;
 
 #[macro_use]
 extern crate sqlx;
 
 use dotenv;
-use scheduler::JobScheduler;
+use scheduler::{Job, JobScheduler};
 #[allow(unused_imports)]
 use serenity::{
     async_trait,
     model::{
+        channel::Message,
         gateway::Ready,
-        guild::Guild,
-        id::GuildId,
+        guild::{Guild, PartialGuild},
+        id::{ChannelId, CommandId, GuildId},
         interactions::{
             application_command::{
                 ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
@@ -23,6 +26,11 @@ use serenity::{
         },
     },
     prelude::*,
+};
+
+use serenity::{
+    http::{CacheHttp, Http},
+    model::channel::ReactionType,
 };
 use std::{collections::HashSet, env, sync::Arc};
 
@@ -67,108 +75,38 @@ async fn main() {
     }
 }
 
-struct Handler;
-
-#[async_trait]
-impl EventHandler for Handler {
-    //Fires every time a command is called from discord
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        //let admins = vec!["181477689708904448", "224154198860759042"];
-        let data = {
-            let data_read = &ctx.data.read().await;
-
-            data_read
-                .get::<DB>()
-                .expect("Something went wrong gettnig the database connection")
-                .clone()
-        };
-
-        //Check which command was called and fire corresponding action
-        if let Interaction::ApplicationCommand(command) = interaction {
-            let content = match command.data.name.as_str() {
-                "timer" => {
-                    "Hey, I'm alive!".to_string()
-                    //
+fn channel_raid_warn(http: Arc<&Http>, time: &Timer) {
+    async {
+        let channel = ChannelId(326349171940655105);
+        let channel_res = channel.send_message(*http, |m| {
+            m.add_embed(|e| {
+                e.title(&time.title);
+                if let Some(bdy) = &time.body {
+                    e.description(&format!("{}\n", bdy).to_string());
                 }
-                "list" => {
-                    let mut res = "Listing timers and their id's: \n".to_owned();
-                    res = res.to_owned() + "-----------------\n";
-                    if let Ok(db_res) = get_timers(&data).await {
-                        if db_res.is_empty() {
-                            res.clear();
-                            res =
-                                "No timers in the database yet! Use the /timer command to add one!"
-                                    .to_string();
-                        } else {
-                            for timer in &db_res {
-                                res = res + "id: " + &timer.id.to_string() + "\n";
-                                res = res + "title: " + &timer.title.to_string() + "\n";
-                                res = res + "recurring: " + &timer.recurring.to_string() + "\n";
-                            }
-                        };
-                    } else {
-                        res = "Something went wrong while getting timers,
-                          try agian later.
-                          If problem persists contact bot maintainer at yousof777@gmail.com
-                          or on discord for support."
-                            .to_string();
-                    }
-                    res
-                }
-                "delete" => {
-                    //
-                    "test".to_owned()
-                }
-                _ => "not implemented :(".to_string(),
-            };
+                if let Some(rl) = &time.raid_lead {
+                    e.field("_Raid lead_", rl, false);
+                };
+                e.colour(serenity::utils::Colour::RED);
+                e.footer(|f| {
+                    f.text(
+                        "click corresponding reaction.
+✅: attending, ❌: not attending, ❔: tentative, ⌚: late",
+                    )
+                });
+                e
+            });
+            m.reactions([
+                ReactionType::Unicode("✅".to_owned()),
+                ReactionType::Unicode("❌".to_owned()),
+                ReactionType::Unicode("❔".to_owned()),
+                ReactionType::Unicode("⌚".to_owned()),
+            ]);
+            m
+        });
 
-            if let Err(why) = command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| message.content(content))
-                })
-                .await
-            {
-                println!("Cannot respond to slash command: {}", why);
-            }
-        }
-    }
-
-    async fn ready(&self, ctx: Context, ready: Ready) {
-        //let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {commands}).await;
-        let pool = {
-            let data_read = &ctx.data.read().await;
-
-            data_read
-                .get::<DB>()
-                .expect("Something went wrong gettnig the database connection")
-                .clone()
-        };
-
-        let res_timers = get_timers(&pool).await;
-
-        if let Ok(timers) = res_timers {}
-
-        ctx.set_presence(
-            Some(serenity::model::gateway::Activity::playing(
-                "The waiting game",
-            )),
-            serenity::model::user::OnlineStatus::Online,
-        )
-        .await;
-
-        GuildId(326330465218985985)
-            .create_application_command(&ctx.http, |command| {
-                command
-                    .name("list")
-                    .description("List all timers set for the bot")
-                    .default_permission(true)
-            })
-            .await
-            .unwrap();
-        println!("{} is connected!", ready.user.name);
-    }
+        channel_res.await
+    };
 }
 
 fn establish_discord_connection() -> (serenity::http::Http, String) {
