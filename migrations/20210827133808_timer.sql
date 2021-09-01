@@ -5,5 +5,6 @@ CREATE TABLE IF NOT EXISTS timers (
     body TEXT,
     recurring BOOLEAN NOT NULL DEFAULT 'f',
     raid_lead VARCHAR,
-    time TEXT NOT NULL
+    time TEXT NOT NULL,
+    Channel NUMERIC(20) NOT NULL
 )
