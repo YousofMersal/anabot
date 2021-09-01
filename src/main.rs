@@ -29,16 +29,18 @@ use serenity::{
 };
 
 use serenity::{
+    futures::lock::Mutex,
     http::{CacheHttp, Http},
     model::channel::ReactionType,
 };
-use std::{collections::HashSet, env, sync::Arc};
+use std::{collections::HashSet, env, future::Future, sync::Arc};
 
 // Main async function that imports env variables, and boots up the discord bot & the database.
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
     let (http, token) = establish_discord_connection();
+    convert_string(&"convert this string please".to_owned());
 
     let (_owners, _bot_id) = match http.get_current_application_info().await {
         Ok(info) => {
@@ -67,7 +69,7 @@ async fn main() {
         let mut data = client.data.write().await;
 
         data.insert::<DB>(Arc::new(establish_db_connection().await));
-        data.insert::<Schedule>(Arc::new(JobScheduler::new()));
+        data.insert::<Schedule>(Arc::new(Mutex::new(JobScheduler::new())));
     }
 
     if let Err(why) = client.start().await {
@@ -75,10 +77,14 @@ async fn main() {
     }
 }
 
-fn channel_raid_warn(http: Arc<&Http>, time: &Timer) {
-    async {
-        let channel = ChannelId(326349171940655105);
-        let channel_res = channel.send_message(*http, |m| {
+async fn channel_raid_warn(time: &NewTimer) -> Result<Message, SerenityError> {
+    let token = env::var("DISCORD_TOKEN").unwrap();
+    let id: u64 = 852192886883090473;
+    let http = Http::new_with_token_application_id(&token, id);
+
+    let channel = ChannelId(326349171940655105);
+    let chan_res = channel
+        .send_message(http, move |m| {
             m.add_embed(|e| {
                 e.title(&time.title);
                 if let Some(bdy) = &time.body {
@@ -103,10 +109,10 @@ fn channel_raid_warn(http: Arc<&Http>, time: &Timer) {
                 ReactionType::Unicode("⌚".to_owned()),
             ]);
             m
-        });
+        })
+        .await?;
 
-        channel_res.await
-    };
+    Ok(chan_res)
 }
 
 fn establish_discord_connection() -> (serenity::http::Http, String) {

@@ -1,10 +1,10 @@
-use std::{env, sync::Arc};
+#![allow(dead_code)]
+use scheduler::Job;
+use crate::db::*;
 
+#[allow(unused_imports)]
 use crate::channel_raid_warn;
 
-use super::db::*;
-
-use scheduler::{Job, JobScheduler};
 #[allow(unused_imports)]
 use serenity::{
     async_trait,
@@ -16,15 +16,13 @@ use serenity::{
         interactions::{
             application_command::{
                 ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
-                ApplicationCommandOptionType, ApplicationCommandPermission,
-                ApplicationCommandPermissionData, ApplicationCommandPermissionType,
+                ApplicationCommandOptionType, 
             },
             Interaction, InteractionResponseType,
         },
     },
     prelude::*,
 };
-use serenity::{http::{CacheHttp, Http}, model::channel::PartialChannel};
 
 pub struct Handler;
 
@@ -46,37 +44,37 @@ impl EventHandler for Handler {
         if let Interaction::ApplicationCommand(command) = interaction {
             let content = match command.data.name.as_str() {
                 "timer" => {
-                    let token = env::var("DISCORD_TOKEN").unwrap();
-                    let mut res = String::new();
-                    let data = &command.data.options;
+                    let mut res = "";
+                    let command_options = &command.data.options;
 
-                    let mut t = NewTimer {
+                    let mut new_timer = NewTimer {
                         title: "placeholder".to_string(),
                         time: "placeholder".to_string(),
                         recurring: true,
                         ..Default::default()
                     };
 
-                    for option in data {
+                    for option in command_options {
                         match option.name.as_str() {
                             "title" => {
                                 if let Some(val) = &option.value {
-                                    t.title = val.to_string();
+                                    new_timer.title = val.to_string();
                                 }
                             }
                             "body" => {
                                 if let Some(val) = &option.value {
-                                    t.body = Some(val.to_string());
+                                    new_timer.body = Some(val.to_string());
                                 }
                             }
                             "raidlead" => {
                                 if let Some(val) = &option.value {
-                                    t.raid_lead = Some(val.to_string());
+                                    new_timer.raid_lead = Some(val.to_string());
                                 }
                             }
                             "time" => {
                                 if let Some(val) = &option.value {
-                                    t.time =val.to_string();
+
+                                    new_timer.time =val.to_string();
                                 }
                             }
                             "channel" => {
@@ -85,20 +83,10 @@ impl EventHandler for Handler {
                                         ApplicationCommandInteractionDataOptionValue::Channel(chan) => {
                                             match chan.kind {
                                                 serenity::model::channel::ChannelType::Text => {
-                                                    let id = command.application_id.as_u64().to_owned();
-                                                    let http = Http::new_with_token_application_id(&token, id);
-                                                    let m_res = chan.id.send_message(http, |m| {
-                                                        m.content("test");
-                                                        m
-                                                    }).await;
-                                                    if let Err(err) = m_res {
-                                                        eprintln!("{}", err);
-                                                    } else {
-                                                        res =  "Job registired!".to_string();
-                                                    } 
+                                                    new_timer.channel = *chan.id.as_u64();
                                                 },
                                                 _ => {
-                                                    res = "Please select a normal text channel when selecting channel to announce in.".to_string();
+                                                    res = "Please select a normal text channel when selecting channel to announce in.";
                                                 }
                                             }
                                         },
@@ -111,8 +99,32 @@ impl EventHandler for Handler {
                         }
 
                     }
+                    
+                   if let Ok(_) = add_timer(&data, &new_timer).await{
+                       {
+                           let data_read = &ctx.data.write().await;
 
-                    res
+                           let schedule = data_read
+                               .get::<Schedule>()
+                               .expect("Something went wrong gettnig the database connection")
+                               .clone();
+
+                           let mut sched_lock = schedule.lock().await;
+
+                           let job = Job::new(&new_timer.time.to_string(),  move |_uuid, _l| {
+                               channel_raid_warn(&new_timer);
+                           });
+
+                           if let Ok(jb) = job {
+                               sched_lock.add(jb);
+                           }
+                       };
+
+                       res = "Timer succesfully registered"
+                   } 
+
+
+                    res.to_string()
                 }
                 "timehelp" => "The time is a space seperated \"list\" of time units starting with the hour then minute then day, then optionally month and year.
 Named options are Day and Month which can be capitalized of not, and have the first 3 letters of the day/month.
@@ -188,14 +200,6 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
                 .clone()
         };
 
-        let schedule = {
-            let data_read = &ctx.data.read().await;
-
-            data_read
-                .get::<Schedule>()
-                .expect("Something went wrong gettnig the database connection")
-                .clone()
-        };
 
         ctx.set_presence(
             Some(serenity::model::gateway::Activity::playing(
@@ -265,23 +269,40 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
                             .required(false)
                             .kind(ApplicationCommandOptionType::String)
                     })
+                    .create_option(|option| {
+                        option
+                            .name("dateofmonth")
+                            .description("Date of the month must be numerical and between 1 and 31. Optional")
+                            .required(false)
+                            .kind(ApplicationCommandOptionType::String)
+                    })
             }).await.unwrap();
 
-        //   let res_timers = get_timers(&pool).await;
 
-        //   if let Ok(timers) = res_timers {
-        //       let http = Arc::new(ctx.http());
-        //       for time in timers {
-        //           let job = Job::new(&time.time.to_string(), |uuid, l| {
-        //               //channel_raid_warn(&ctx, &time).await;
-        //               channel_raid_warn(http, &time);
-        //           });
+      let res_timers = get_timers(&pool).await;
 
-        //           //insert timer job
-        //       }
-        //   };
+//    if let Ok(timers) = res_timers {
+//        for time in timers {
+//            let job = Job::new(&time.time.to_string(), move |_uuid, _l| {
+//                //channel_raid_warn(&ctx, &time).await;
+//                channel_raid_warn(&time.to_new_timer());
+//            });
 
-        tokio::spawn(schedule.start());
+//            //insert timer job
+//        }
+//    };
+
+        {
+            let data_read = &ctx.data.read().await;
+
+            let schedule = data_read
+                .get::<Schedule>()
+                .expect("Something went wrong gettnig the database connection")
+                .clone()
+                .lock()
+                .await;
+            tokio::spawn(schedule.start());
+        };
 
         println!("{} is connected!", ready.user.name);
     }
