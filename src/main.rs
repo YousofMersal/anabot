@@ -6,6 +6,7 @@ use handler::*;
 #[macro_use]
 extern crate sqlx;
 
+// TODO test todo
 use dotenv;
 use scheduler::{Job, JobScheduler};
 #[allow(unused_imports)]
@@ -40,7 +41,7 @@ use std::{collections::HashSet, env, future::Future, sync::Arc};
 async fn main() {
     dotenv::dotenv().ok();
     let (http, token) = establish_discord_connection();
-    convert_string(&"convert this string please".to_owned());
+    convert_string(&"convert this string please".to_string());
 
     let (_owners, _bot_id) = match http.get_current_application_info().await {
         Ok(info) => {

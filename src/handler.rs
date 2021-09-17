@@ -298,10 +298,12 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
             let schedule = data_read
                 .get::<Schedule>()
                 .expect("Something went wrong gettnig the database connection")
-                .clone()
                 .lock()
                 .await;
-            tokio::spawn(schedule.start());
+
+            let t = schedule.start();
+
+            tokio::spawn(t);
         };
 
         println!("{} is connected!", ready.user.name);

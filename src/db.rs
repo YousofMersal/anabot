@@ -136,8 +136,8 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     Ok(res)
 }
 
-pub fn convert_string(input: String) {
-    let mut res: Result<String, std::io::Error> = Ok(input);
+pub fn convert_string(input: &String) {
+    let mut res: Result<String, std::io::Error> = Ok(input.to_string());
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
     //Check amount of arguments
