@@ -75,43 +75,39 @@ async fn main() {
     }
 }
 
-async fn channel_raid_warn(time: &NewTimer) -> Result<Message, SerenityError> {
+fn channel_raid_warn(time: NewTimer) {
     let token = env::var("DISCORD_TOKEN").unwrap();
     let id: u64 = 852192886883090473;
     let http = Http::new_with_token_application_id(&token, id);
 
     let channel = ChannelId(326349171940655105);
 
-    let chan_res = channel
-        .send_message(http, move |m| {
-            m.add_embed(|e| {
-                e.title(&time.title);
-                if let Some(bdy) = &time.body {
-                    e.description(&format!("{}\n", bdy).to_string());
-                }
-                if let Some(rl) = &time.raid_lead {
-                    e.field("_Raid lead_", rl, false);
-                };
-                e.colour(serenity::utils::Colour::RED);
-                e.footer(|f| {
-                    f.text(
-                        "click corresponding reaction.
+    tokio::spawn(channel.send_message(http, move |m| {
+        m.add_embed(|e| {
+            e.title(&time.title);
+            if let Some(bdy) = &time.body {
+                e.description(&format!("{}\n", bdy).to_string());
+            }
+            if let Some(rl) = &time.raid_lead {
+                e.field("_Raid lead_", rl, false);
+            };
+            e.colour(serenity::utils::Colour::RED);
+            e.footer(|f| {
+                f.text(
+                    "click corresponding reaction.
 ✅: attending, ❌: not attending, ❔: tentative, ⌚: late",
-                    )
-                });
-                e
+                )
             });
-            m.reactions([
-                ReactionType::Unicode("✅".to_owned()),
-                ReactionType::Unicode("❌".to_owned()),
-                ReactionType::Unicode("❔".to_owned()),
-                ReactionType::Unicode("⌚".to_owned()),
-            ]);
-            m
-        })
-        .await?;
-
-    Ok(chan_res)
+            e
+        });
+        m.reactions([
+            ReactionType::Unicode("✅".to_owned()),
+            ReactionType::Unicode("❌".to_owned()),
+            ReactionType::Unicode("❔".to_owned()),
+            ReactionType::Unicode("⌚".to_owned()),
+        ]);
+        m
+    }));
 }
 
 fn establish_discord_connection() -> (serenity::http::Http, String) {
