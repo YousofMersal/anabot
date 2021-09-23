@@ -36,7 +36,7 @@ pub struct DbTimer {
     pub channel: Decimal,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct NewTimer {
     pub title: String,
     pub body: Option<String>,
@@ -136,12 +136,21 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     Ok(res)
 }
 
+/// Convert to valid cron string.
+/// If string is not already a valid cron string construct of partial artifacts.
+/// If not able to construct cron string will return error.
+///
+/// ```rust
+/// let cron = anabot::convert_string("12 00 Thu");
+/// assert_eq!(cron, "* 12 00 * * Thu *");
+/// ```
 pub fn convert_string(input: &String) {
     let mut res: Result<String, std::io::Error> = Ok(input.to_string());
+
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
     //Check amount of arguments
-    if split.len() > 6 || split.len() < 3 {
+    if split.len() <= 6 || split.len() >= 3 {
         //Check hour
         let hour_split = split[0].split(",");
         for _hour_u in hour_split {
