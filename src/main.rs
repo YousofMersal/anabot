@@ -8,10 +8,11 @@ extern crate sqlx;
 
 // TODO test todo
 use dotenv;
-use scheduler::{Job, JobScheduler};
+use scheduler::JobScheduler;
 #[allow(unused_imports)]
 use serenity::{
     async_trait,
+    http::Http,
     model::{
         channel::Message,
         gateway::Ready,
@@ -29,12 +30,8 @@ use serenity::{
     prelude::*,
 };
 
-use serenity::{
-    futures::lock::Mutex,
-    http::{CacheHttp, Http},
-    model::channel::ReactionType,
-};
-use std::{collections::HashSet, env, future::Future, sync::Arc};
+use serenity::{futures::lock::Mutex, model::channel::ReactionType};
+use std::{collections::HashSet, env, sync::Arc};
 
 // Main async function that imports env variables, and boots up the discord bot & the database.
 #[tokio::main]
@@ -84,6 +81,7 @@ async fn channel_raid_warn(time: &NewTimer) -> Result<Message, SerenityError> {
     let http = Http::new_with_token_application_id(&token, id);
 
     let channel = ChannelId(326349171940655105);
+
     let chan_res = channel
         .send_message(http, move |m| {
             m.add_embed(|e| {
