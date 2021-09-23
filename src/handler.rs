@@ -111,15 +111,28 @@ impl EventHandler for Handler {
 
                            let mut sched_lock = schedule.lock().await;
 
-                           let job = Job::new(&new_timer.time.to_string(), move |_uuid, _l| {
-                               channel_raid_warn(&new_timer);
-                           });
+                           let mut time = "";
+                           for option in command_options {
+                               if option.name == "time" {
+                                   if let Some(o_time) = &option.value {
+                                       if let Some(s) = o_time.as_str() {
+                                           time = s;
+                                       }
+                                   }
+                               }
+                           };
 
-                           if let Ok(jb) = job {
-                               if let Err(e) = sched_lock.add(jb) {
-                                   eprintln!("Something went horribly wrong while yelling at people! {}", e);
-                               };
+
+                           let r = sched_lock.add(Job::new(&time, move |_uuid, _l| {
+                               println!("firing timer");
+                               channel_raid_warn(new_timer.clone());
+                           }).unwrap()); 
+
+                           if let Err(e) = r {
+                               println!("error adding job?: {}", e);
+                               panic!();
                            }
+
                        };
 
                        res = "Timer succesfully registered"
@@ -303,13 +316,7 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
                 .lock()
                 .await;
 
-            let t = schedule.start();
-
-            tokio::spawn(async move {
-                if let Err(e) =   t.await {
-                    eprintln!("Could not start schedule {}", e);
-                };
-            });
+            tokio::spawn(schedule.start());
         };
 
         println!("{} is connected!", ready.user.name);
