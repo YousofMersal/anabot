@@ -111,12 +111,14 @@ impl EventHandler for Handler {
 
                            let mut sched_lock = schedule.lock().await;
 
-                           let job = Job::new(&new_timer.time.to_string(),  move |_uuid, _l| {
+                           let job = Job::new(&new_timer.time.to_string(), move |_uuid, _l| {
                                channel_raid_warn(&new_timer);
                            });
 
                            if let Ok(jb) = job {
-                               sched_lock.add(jb);
+                               if let Err(e) = sched_lock.add(jb) {
+                                   eprintln!("Something went horribly wrong while yelling at people! {}", e);
+                               };
                            }
                        };
 
@@ -168,7 +170,7 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
                 _ => "not implemented :(".to_string(),
             };
 
-            let mut m_split = split_to_discord_size(content.clone());
+            let m_split = split_to_discord_size(content.clone());
             let f_split = m_split.first();
 
             if let Some(f_string) = f_split {
@@ -279,7 +281,7 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
             }).await.unwrap();
 
 
-      let res_timers = get_timers(&pool).await;
+      let _res_timers = get_timers(&pool).await;
 
 //    if let Ok(timers) = res_timers {
 //        for time in timers {
@@ -303,7 +305,11 @@ it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a messag
 
             let t = schedule.start();
 
-            tokio::spawn(t);
+            tokio::spawn(async move {
+                if let Err(e) =   t.await {
+                    eprintln!("Could not start schedule {}", e);
+                };
+            });
         };
 
         println!("{} is connected!", ready.user.name);

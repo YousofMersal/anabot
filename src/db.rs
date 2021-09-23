@@ -144,7 +144,7 @@ pub fn convert_string(input: &String) {
     if split.len() > 6 || split.len() < 3 {
         //Check hour
         let hour_split = split[0].split(",");
-        for hour_u in hour_split {
+        for _hour_u in hour_split {
             let hour_s = split[0].parse::<i64>();
             if let Ok(hour) = hour_s {
                 if hour > 24 || hour < 0 {
@@ -175,9 +175,11 @@ pub fn convert_string(input: &String) {
             }
         }
     }
-    let mut new_string = String::new();
-    for elem in split {
+    let _new_string = String::new();
+    for _elem in split {
         //
     }
-    res;
+    if let Err(e) = res {
+        eprintln!("{}", e);
+    };
 }
