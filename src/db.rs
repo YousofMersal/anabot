@@ -1,6 +1,7 @@
 #![allow(dead_code)]
-use std::{env, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
 
+use chrono::Datelike;
 use scheduler::*;
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
 use sqlx::{
@@ -8,6 +9,73 @@ use sqlx::{
     types::Decimal,
     Error, PgPool,
 };
+
+#[derive(Debug)]
+struct WeekError {
+    details: String,
+}
+
+impl WeekError {
+    fn new(msg: &str) -> WeekError {
+        WeekError {
+            details: msg.to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for WeekError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.details)
+    }
+}
+
+impl std::error::Error for WeekError {
+    fn description(&self) -> &str {
+        &self.details
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum WeekDay {
+    Mon,
+    Tue,
+    Wed,
+    Thu,
+    Fri,
+    Sat,
+    Sun,
+}
+
+impl WeekDay {
+    fn to_string(s: &Self) -> &str {
+        match s {
+            WeekDay::Mon => "Mon",
+            WeekDay::Tue => "Tue",
+            WeekDay::Wed => "Wed",
+            WeekDay::Thu => "Thu",
+            WeekDay::Fri => "Fri",
+            WeekDay::Sat => "Sat",
+            WeekDay::Sun => "Sun",
+        }
+    }
+}
+
+impl FromStr for WeekDay {
+    type Err = WeekError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Mon" => Ok(WeekDay::Mon),
+            "Tue" => Ok(WeekDay::Tue),
+            "Wed" => Ok(WeekDay::Wed),
+            "Thu" => Ok(WeekDay::Thu),
+            "Fri" => Ok(WeekDay::Fri),
+            "Sat" => Ok(WeekDay::Sat),
+            "Sun" => Ok(WeekDay::Sun),
+            _ => Err(WeekError::new("Invalid WeekDay")),
+        }
+    }
+}
 
 enum Time {
     Timer(Timer),
@@ -141,54 +209,83 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
 /// If not able to construct cron string will return error.
 ///
 /// ```rust
-/// let cron = anabot::convert_string("12 00 Thu");
-/// assert_eq!(cron, "* 12 00 * * Thu *");
+/// let cron-t = anabot::convert_string("12 00 Thu");
+/// assert_eq!(cron-t, "* 12 00 * * Thu *");
 /// ```
-pub fn convert_string(input: &String) {
-    let mut res: Result<String, std::io::Error> = Ok(input.to_string());
+pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
+    let mut res: Result<&str, Box<dyn std::error::Error>> = Ok(input);
 
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
     //Check amount of arguments
-    if split.len() <= 6 || split.len() >= 3 {
+    if split.len() == 3 {
         //Check hour
-        let hour_split = split[0].split(",");
-        for _hour_u in hour_split {
-            let hour_s = split[0].parse::<i64>();
+        let hour_split = split[0].split(',');
+        for hour_u in hour_split {
+            let hour_s = hour_u.parse::<i32>();
             if let Ok(hour) = hour_s {
-                if hour > 24 || hour < 0 {
-                    res = Err(std::io::Error::new(
+                if hour > 23 || hour < 0 {
+                    res = Err(Box::new(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
-                        "invalid format",
-                    ));
+                        "Invalid format, reason: Hour must be 24 hour format and between 0 and 23",
+                    )));
                 }
             }
         }
 
-        let min_split = split[1].split(",");
+        // Check min
+        let min_split = split[1].split(',');
         for min_u in min_split {
-            let min_s = min_u.parse::<i64>();
-
+            let min_s = min_u.parse::<i32>();
             if let Ok(min) = min_s {
-                if min > 60 || min < 0 {
-                    res = Err(std::io::Error::new(
+                if min > 59 || min < 0 {
+                    res = Err(Box::new(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
-                        "invalid format",
-                    ));
+                        "Invalif format, reason: Minutes must be between 0 and 59.",
+                    )));
                 }
-            } else {
-                res = Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "invalid format",
-                ));
             }
         }
+
+        //Check day
+        let day_split = split[2].split(',');
+        for day_u in day_split {
+            if let Err(e) = WeekDay::from_str(day_u) {
+                res = Err(Box::new(e));
+            }
+        }
+    } else if split.len() == 5 {
+        let year_split = split[4];
+        for year_u in year_split.split(',') {
+            if let Ok(year) = year_u.parse::<i32>() {
+                if year < chrono::Local::now().year() {
+                    res = Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalif format, reason: Can't be an already passed year",
+                    )));
+                }
+            }
+        }
+
+        let month_split = split[3].split(',');
+        for month_u in month_split {
+            let month_s = month_u.parse::<i32>();
+            if let Ok(month) = month_s {
+                if month > 1 || month < 12 {
+                    res = Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalif format, reason: Month must be between 1 and 12.",
+                    )));
+                }
+            }
+        }
+    } else if split.len() == 4 {
+        let unit_split = split[3];
+        let unit_s = unit_split.split(',');
+        for unit_u in unit_s {
+            if let Ok(unit) = unit_u {}
+        }
     }
-    let _new_string = String::new();
-    for _elem in split {
-        //
-    }
-    if let Err(e) = res {
-        eprintln!("{}", e);
-    };
+
+    res
 }
