@@ -146,9 +146,9 @@ Named options are Day and Month which can be capitalized of not, and have the fi
 Resulting in a format that must be like so: **Hour Minute Day (Month) (Year)**;
 a valid option looks as so **19 30 Thu 2021** which will make a message every Thursday at 19:30 for the whole of 2021.
 **Parentheses** denotes _optional_ time units, omitting an optional unit will default to doing it at every year/month.
-    If multiple time slots are wanted a comma seperated list is also possible.
+    If multiple time slots are wanted a comma seperated list is also possible, bigger spans a \"-\" span can be used.
 To return to last example if for example the same timer needs to be fired twice on multiple days at the same time,
-it can be written like so: **19,18 30 Wed,Fri Jun,Jul** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june and july."
+it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june and july."
                     .to_owned(),
                 "list" => {
                     let mut res = "Listing timers and their id's: \n".to_owned();
