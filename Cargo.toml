@@ -13,6 +13,7 @@ sqlx = {version = "0.5", features = ["runtime-tokio-rustls", "postgres", "macros
 chrono = "0.4.19"
 uuid = {version = "0.8.2", features = ["v4"]}
 scheduler = {path = "../scheduler"}
+cron = "0.9.0"
 
 [dependencies.serenity]
 git = "https://github.com/serenity-rs/serenity"

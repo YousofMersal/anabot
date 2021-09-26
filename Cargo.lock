@@ -24,6 +24,7 @@ name = "anabot"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cron",
  "dotenv",
  "scheduler",
  "serenity",
