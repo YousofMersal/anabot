@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-use std::{env, str::FromStr, sync::Arc};
+use std::{env, fmt, str::FromStr, sync::Arc};
 
-use chrono::Datelike;
 use scheduler::*;
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
 use sqlx::{
@@ -83,7 +82,7 @@ enum Time {
     NewTimer(NewTimer),
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Timer {
     pub id: i32,
     pub title: String,
@@ -115,15 +114,21 @@ pub struct NewTimer {
 }
 
 impl Timer {
-    pub fn to_new_timer(self) -> NewTimer {
+    pub fn to_new_timer(&self) -> NewTimer {
         NewTimer {
-            title: self.title,
-            time: self.time,
-            body: self.body,
+            title: self.title.clone(),
+            time: self.time.clone(),
+            body: self.body.clone(),
             recurring: self.recurring,
-            raid_lead: self.raid_lead,
+            raid_lead: self.raid_lead.clone(),
             channel: self.channel,
         }
+    }
+}
+
+impl fmt::Display for Timer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Title: {}\nTime: {}", self.title, self.time)
     }
 }
 
@@ -204,6 +209,31 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     Ok(res)
 }
 
+pub fn naive_convert(input: &str) -> Result<String, &str> {
+    let split_itt = input.split(" ");
+    let split: Vec<&str> = split_itt.collect();
+    let res;
+    if split.len() == 3 {
+        res = format!(
+            "0 {} {} * * {}",
+            split[1].trim_matches('"'),
+            split[0].trim_matches('"'),
+            split[2].trim_matches('"')
+        );
+    } else if split.len() == 4 {
+        res = format!(
+            "0 {} {} * {} {}",
+            split[1].trim_matches('"'),
+            split[0].trim_matches('"'),
+            split[2].trim_matches('"'),
+            split[3].trim_matches('"')
+        );
+    } else {
+        return Err("could not format string");
+    }
+    Ok(res)
+}
+
 /// Convert to valid cron string.
 /// If string is not already a valid cron string construct of partial artifacts.
 /// If not able to construct cron string will return error.
@@ -254,19 +284,7 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
                 res = Err(Box::new(e));
             }
         }
-    } else if split.len() == 5 {
-        let year_split = split[4];
-        for year_u in year_split.split(',') {
-            if let Ok(year) = year_u.parse::<i32>() {
-                if year < chrono::Local::now().year() {
-                    res = Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "Invalif format, reason: Can't be an already passed year",
-                    )));
-                }
-            }
-        }
-
+    } else if split.len() == 4 {
         let month_split = split[3].split(',');
         for month_u in month_split {
             let month_s = month_u.parse::<i32>();
@@ -279,12 +297,11 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
                 }
             }
         }
-    } else if split.len() == 4 {
-        let unit_split = split[3];
-        let unit_s = unit_split.split(',');
-        for unit_u in unit_s {
-            if let Ok(unit) = unit_u {}
-        }
+    } else {
+        res = Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "could not convert string",
+        )));
     }
 
     res

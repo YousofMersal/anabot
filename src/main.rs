@@ -38,7 +38,6 @@ use std::{collections::HashSet, env, sync::Arc};
 async fn main() {
     dotenv::dotenv().ok();
     let (http, token) = establish_discord_connection();
-    convert_string(&"17,18 00,01 Thu");
 
     let (_owners, _bot_id) = match http.get_current_application_info().await {
         Ok(info) => {

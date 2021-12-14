@@ -1,6 +1,9 @@
 #![allow(dead_code)]
+use std::str::FromStr;
+
 use scheduler::Job;
 use crate::db::*;
+
 
 #[allow(unused_imports)]
 use crate::channel_raid_warn;
@@ -73,8 +76,14 @@ impl EventHandler for Handler {
                             }
                             "time" => {
                                 if let Some(val) = &option.value {
+                                    let str = &val.to_string();
+                                    let conversion = naive_convert(str);
+                                    if let Ok(value) = conversion {
+                                        new_timer.time = value;
+                                    } else {
+                                        res = "Time format malformed, for help use /timerhelp"
+                                    }
 
-                                    new_timer.time =val.to_string();
                                 }
                             }
                             "channel" => {
@@ -91,7 +100,7 @@ impl EventHandler for Handler {
                                             }
                                         },
                                         _ => eprintln!("unknown option found while createing new timer")
-                                        
+
                                     }
                                 }
                             }
@@ -99,83 +108,86 @@ impl EventHandler for Handler {
                         }
 
                     }
-                    
-                   if let Ok(_) = add_timer(&data, &new_timer).await{
-                       {
-                           let data_read = &ctx.data.write().await;
 
-                           let schedule = data_read
-                               .get::<Schedule>()
-                               .expect("Something went wrong gettnig the database connection")
-                               .clone();
+                    if let Ok(_) = add_timer(&data, &new_timer).await {
+                        {
+                            let data_read = &ctx.data.write().await;
 
-                           let mut sched_lock = schedule.lock().await;
+                            let schedule = data_read
+                                .get::<Schedule>()
+                                .expect("Something went wrong gettnig the database connection")
+                                .clone();
 
-                           let mut time = "";
-                           for option in command_options {
-                               if option.name == "time" {
-                                   if let Some(o_time) = &option.value {
-                                       if let Some(s) = o_time.as_str() {
-                                           time = s;
-                                       }
-                                   }
-                               }
-                           };
+                            let mut sched_lock = schedule.lock().await;
 
+                            let mut time = "";
 
-                           let r = sched_lock.add(Job::new(&time, move |_uuid, _l| {
-                               println!("firing timer");
-                               channel_raid_warn(new_timer.clone());
-                           }).unwrap()); 
+                            for option in command_options {
+                                if option.name == "time" {
+                                    if let Some(o_time) = &option.value {
+                                        if let Some(s) = o_time.as_str() {
+                                            time = s;
+                                        }
+                                    }
+                                }
+                            };
 
-                           if let Err(e) = r {
-                               println!("error adding job?: {}", e);
-                               panic!();
-                           }
+                            let job = Job::new(&naive_convert(&time).expect("could not convert"), move |_uuid, _l| {
+                                channel_raid_warn(new_timer.clone());
+                            });
+                            
+                            match job {
+                                Ok(job) => {
+                                    sched_lock.add(job).expect("error adding job to queue"); 
+                                }
+                                Err(e) => {
+                                    println!("error adding job?: {}", e);
+                                    panic!();
+                                }
+                            }
+                        };
 
-                       };
-
-                       res = "Timer succesfully registered"
-                   } 
+                        res = "Timer succesfully registered"
+                    } 
 
 
                     res.to_string()
                 }
                 "timehelp" => "The time is a space seperated \"list\" of time units starting with the hour then minute then day, then optionally month and year.
-Named options are Day and Month which can be capitalized of not, and have the first 3 letters of the day/month.
-Resulting in a format that must be like so: **Hour Minute Day (Month) (Year)**;
-a valid option looks as so **19 30 Thu 2021** which will make a message every Thursday at 19:30 for the whole of 2021.
-**Parentheses** denotes _optional_ time units, omitting an optional unit will default to doing it at every year/month.
-    If multiple time slots are wanted a comma seperated list is also possible, bigger spans a \"-\" span can be used.
-To return to last example if for example the same timer needs to be fired twice on multiple days at the same time,
-it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june and july."
-                    .to_owned(),
-                "list" => {
-                    let mut res = "Listing timers and their id's: \n".to_owned();
-                    res = res.to_owned() + "---------\n";
-                    if let Ok(db_res) = get_timers(&data).await {
-                        if db_res.is_empty() {
-                            res.clear();
-                            res =
-                                "No timers in the database yet! Use the /timer command to add one!"
+                    Named options are Day and Month which can be capitalized of not, and have the first 3 letters of the day/month.
+                    Resulting in a format that must be like so: **Hour Minute Day (Month) (Year)**;
+                a valid option looks as so **19 30 Thu 2021** which will make a message every Thursday at 19:30 for the whole of 2021.
+                    **Parentheses** denotes _optional_ time units, omitting an optional unit will default to doing it at every year/month.
+                    If multiple time slots are wanted a comma seperated list is also possible, bigger spans a \"-\" span can be used.
+                    To return to last example if for example the same timer needs to be fired twice on multiple days at the same time,
+                    it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june and july."
+                        .to_owned(),
+                    "list" => {
+                        let mut res = "Listing timers and their id's: \n".to_owned();
+                        res = res.to_owned() + "---------\n";
+                        if let Ok(db_res) = get_timers(&data).await {
+                            if db_res.is_empty() {
+                                res.clear();
+                                res =
+                                    "No timers in the database yet! Use the /timer command to add one!"
                                     .to_string();
+                                } else {
+                                    for timer in &db_res {
+                                        res = res + "id: " + &timer.id.to_string() + "\n";
+                                        res = res + "title: " + &timer.title.to_string() + "\n";
+                                        res = res + "recurring: " + &timer.recurring.to_string() + "\n";
+                                        res = res + "------";
+                                    }
+                                };
                         } else {
-                            for timer in &db_res {
-                                res = res + "id: " + &timer.id.to_string() + "\n";
-                                res = res + "title: " + &timer.title.to_string() + "\n";
-                                res = res + "recurring: " + &timer.recurring.to_string() + "\n";
-                                res = res + "------";
+                            res = "Something went wrong while getting timers,
+                            try agian later.
+                                If problem persists contact bot maintainer at yousof777@gmail.com
+                                or on discord for support."
+                                .to_string();
                             }
-                        };
-                    } else {
-                        res = "Something went wrong while getting timers,
-                          try agian later.
-                          If problem persists contact bot maintainer at yousof777@gmail.com
-                          or on discord for support."
-                            .to_string();
+                        res
                     }
-                    res
-                }
                 "delete" => {
                     //
                     "test".to_owned()
@@ -193,7 +205,7 @@ it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at
                             .kind(InteractionResponseType::ChannelMessageWithSource)
                             .interaction_response_data(|message| message.content(f_string))
                     })
-                    .await
+                .await
                 {
                     println!("Cannot respond to slash command: {}", why);
                 }
@@ -218,11 +230,11 @@ it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at
 
         ctx.set_presence(
             Some(serenity::model::gateway::Activity::playing(
-                "The waiting game",
+                    "The waiting game",
             )),
             serenity::model::user::OnlineStatus::Online,
         )
-        .await;
+            .await;
 
         GuildId(326330465218985985)
             .create_application_command(&ctx.http, |command| {
@@ -231,7 +243,7 @@ it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at
                     .description("List all timers set for the bot")
                     .default_permission(true)
             })
-            .await
+        .await
             .unwrap();
 
         GuildId(326330465218985985)
@@ -241,7 +253,7 @@ it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at
                     .description("Get a detailed description of oh the timer format works")
                     .default_permission(true)
             })
-            .await
+        .await
             .unwrap();
 
         GuildId(326330465218985985)
@@ -256,56 +268,73 @@ it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at
                             .required(true)
                             .kind(ApplicationCommandOptionType::String)
                     })
-                    .create_option(|option| {
-                        option
-                            .name("time")
-                            .description("When the timer should send a message. See /timehelp for detailed description of format. Required")
-                            .required(true)
-                            .kind(ApplicationCommandOptionType::String)
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("channel")
-                            .description("The channel to send the message in")
-                            .required(true)
-                            .kind(ApplicationCommandOptionType::Channel)
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("body")
-                            .description("Body of the message that will be sent out. Must be less than 2000 characters. Optional")
-                            .required(false)
-                            .kind(ApplicationCommandOptionType::String)
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("raidlead")
-                            .description("Raid leader of the raid. Must be less than 500 characters. Optional")
-                            .required(false)
-                            .kind(ApplicationCommandOptionType::String)
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("dateofmonth")
-                            .description("Date of the month must be numerical and between 1 and 31. Optional")
-                            .required(false)
-                            .kind(ApplicationCommandOptionType::String)
-                    })
+                .create_option(|option| {
+                    option
+                        .name("time")
+                        .description("When the timer should send a message. See /timehelp for detailed description of format. Required")
+                        .required(true)
+                        .kind(ApplicationCommandOptionType::String)
+                })
+                .create_option(|option| {
+                    option
+                        .name("channel")
+                        .description("The channel to send the message in")
+                        .required(true)
+                        .kind(ApplicationCommandOptionType::Channel)
+                })
+                .create_option(|option| {
+                    option
+                        .name("body")
+                        .description("Body of the message that will be sent out. Must be less than 2000 characters. Optional")
+                        .required(false)
+                        .kind(ApplicationCommandOptionType::String)
+                })
+                .create_option(|option| {
+                    option
+                        .name("raidlead")
+                        .description("Raid leader of the raid. Must be less than 500 characters. Optional")
+                        .required(false)
+                        .kind(ApplicationCommandOptionType::String)
+                })
+                .create_option(|option| {
+                    option
+                        .name("dateofmonth")
+                        .description("Date of the month must be numerical and between 1 and 31. Optional")
+                        .required(false)
+                        .kind(ApplicationCommandOptionType::String)
+                })
             }).await.unwrap();
 
 
-      let _res_timers = get_timers(&pool).await;
+        let res_timers = get_timers(&pool).await;
 
-//    if let Ok(timers) = res_timers {
-//        for time in timers {
-//            let job = Job::new(&time.time.to_string(), move |_uuid, _l| {
-//                //channel_raid_warn(&ctx, &time).await;
-//                channel_raid_warn(&time.to_new_timer());
-//            });
+        if let Ok(timers) = &res_timers {
+            for time in timers {
+                let new_time = time.to_new_timer();
 
-//            //insert timer job
-//        }
-//    };
+                /*
+                let _job = Job::new(&new_time.time.to_string(), move |_uuid, _l| {
+                    //channel_raid_warn(&ctx, &time).await;
+                    channel_raid_warn(new_time.clone());
+                });
+                */
+
+                //insert timer job
+            }
+        };
+
+        //if let Ok(timers) = &res_timers {
+            //for timer in timers {
+                    //let g = cron::Schedule::from_str(&timer.time);
+                    //if let Ok(t) = g {
+                        //for datetime in t.upcoming(chrono::Local).take(1) {
+                            //println!("seconds till fire: {}",  datetime.timestamp_millis() - chrono::Utc::now().timestamp_millis());
+                        //}
+                    //}
+                    //println!("{}\n", timer);
+            //}
+        //};
+
 
         {
             let data_read = &ctx.data.read().await;
