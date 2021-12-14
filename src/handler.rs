@@ -1,7 +1,7 @@
 #![allow(dead_code)]
-use std::str::FromStr;
 
 use scheduler::Job;
+use sqlx::PgPool;
 use crate::db::*;
 
 
@@ -188,9 +188,29 @@ impl EventHandler for Handler {
                             }
                         res
                     }
-                "delete" => {
-                    //
-                    "test".to_owned()
+                "delete_timer" => {
+                    let command_options = &command.data.options; 
+                    let mut res = "";
+
+                    for option in command_options {
+                        if let "id" = option.name.as_str() {
+                            if let Some(val) = &option.value {
+                                let parsed_val =  val.to_string().parse();
+                                if let Ok(parsed) = parsed_val {
+                                    if let Ok(_) = delete_timer(&data, parsed).await {
+                                        res = "No errors while deleting timer";
+                                    } else {
+                                        res = "something went wrong while trying to delete the timer"
+                                    };
+                                } else {
+                                    res = "could not parse id, make sure it is an interger";
+                                }
+                            }
+                        } else {
+                            res = "unknown option";
+                        };
+                    };
+                    res.to_string()
                 }
                 _ => "not implemented :(".to_string(),
             };
@@ -223,7 +243,7 @@ impl EventHandler for Handler {
 
             data_read
                 .get::<DB>()
-                .expect("Something went wrong gettnig the database connection")
+                .expect("Something went wrong getting the database connection")
                 .clone()
         };
 
@@ -254,6 +274,21 @@ impl EventHandler for Handler {
                     .default_permission(true)
             })
         .await
+            .unwrap();
+
+        GuildId(326330465218985985)
+            .create_application_command(&ctx.http, |command| {
+                command
+                    .name("delete_timer")
+                    .description("Get a detailed description of oh the timer format works")
+                    .create_option(|option| {
+                        option
+                            .name("id")
+                            .description("The id of the timer to be deleted")
+                            .required(true)
+                            .kind(ApplicationCommandOptionType::Number)
+                    })
+            }).await
             .unwrap();
 
         GuildId(326330465218985985)
@@ -305,37 +340,6 @@ impl EventHandler for Handler {
                 })
             }).await.unwrap();
 
-
-        let res_timers = get_timers(&pool).await;
-
-        if let Ok(timers) = &res_timers {
-            for time in timers {
-                let new_time = time.to_new_timer();
-
-                /*
-                let _job = Job::new(&new_time.time.to_string(), move |_uuid, _l| {
-                    //channel_raid_warn(&ctx, &time).await;
-                    channel_raid_warn(new_time.clone());
-                });
-                */
-
-                //insert timer job
-            }
-        };
-
-        //if let Ok(timers) = &res_timers {
-            //for timer in timers {
-                    //let g = cron::Schedule::from_str(&timer.time);
-                    //if let Ok(t) = g {
-                        //for datetime in t.upcoming(chrono::Local).take(1) {
-                            //println!("seconds till fire: {}",  datetime.timestamp_millis() - chrono::Utc::now().timestamp_millis());
-                        //}
-                    //}
-                    //println!("{}\n", timer);
-            //}
-        //};
-
-
         {
             let data_read = &ctx.data.read().await;
 
@@ -352,7 +356,15 @@ impl EventHandler for Handler {
     }
 }
 
-//pub fn process_time(raw_time: &str) -> &str {}
+pub async fn delete_timer(pool: &PgPool, id: i32) -> Result<(), String> {
+    let db_res = crate::db::delete_timer(pool, id).await;
+
+    if let Ok(res) = db_res {
+        Ok(())
+    } else {
+        Err("Something went wrong while deleting the app".to_owned())
+    }
+}
 
 pub fn split_to_discord_size(src: String) -> Vec<String> {
     let mut chars = src.chars();
