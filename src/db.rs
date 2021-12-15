@@ -43,6 +43,7 @@ enum WeekDay {
     Fri,
     Sat,
     Sun,
+    All,
 }
 
 impl WeekDay {
@@ -55,6 +56,7 @@ impl WeekDay {
             WeekDay::Fri => "Fri",
             WeekDay::Sat => "Sat",
             WeekDay::Sun => "Sun",
+            WeekDay::All => "*",
         }
     }
 }
@@ -71,6 +73,8 @@ impl FromStr for WeekDay {
             "Fri" => Ok(WeekDay::Fri),
             "Sat" => Ok(WeekDay::Sat),
             "Sun" => Ok(WeekDay::Sun),
+            "*" => Ok(WeekDay::All),
+            // TODO: Make timers work and not fire this mistake on Kleeny star
             _ => Err(WeekError::new("Invalid WeekDay")),
         }
     }
@@ -248,7 +252,7 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
     //Check amount of arguments
-    if split.len() == 3 {
+    if split.len() <= 3 {
         //Check hour
         let hour_split = split[0].split(',');
         for hour_u in hour_split {
@@ -284,16 +288,18 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
                 res = Err(Box::new(e));
             }
         }
-    } else if split.len() == 4 {
-        let month_split = split[3].split(',');
-        for month_u in month_split {
-            let month_s = month_u.parse::<i32>();
-            if let Ok(month) = month_s {
-                if month > 1 || month < 12 {
-                    res = Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "Invalif format, reason: Month must be between 1 and 12.",
-                    )));
+
+        if split.len() == 4 {
+            let month_split = split[3].split(',');
+            for month_u in month_split {
+                let month_s = month_u.parse::<i32>();
+                if let Ok(month) = month_s {
+                    if month > 1 || month < 12 {
+                        res = Err(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalif format, reason: Month must be between 1 and 12.",
+                        )));
+                    }
                 }
             }
         }
@@ -303,6 +309,5 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
             "could not convert string",
         )));
     }
-
     res
 }

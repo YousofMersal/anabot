@@ -19,7 +19,7 @@ use serenity::{
         interactions::{
             application_command::{
                 ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
-                ApplicationCommandOptionType, 
+                ApplicationCommandOptionType, ApplicationCommandInteractionDataOption
             },
             Interaction, InteractionResponseType,
         },
@@ -33,7 +33,6 @@ pub struct Handler;
 impl EventHandler for Handler {
     //Fires every time a command is called from discord
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        //let admins = vec!["181477689708904448", "224154198860759042"];
         let data = {
             let data_read = &ctx.data.read().await;
 
@@ -77,6 +76,13 @@ impl EventHandler for Handler {
                             "time" => {
                                 if let Some(val) = &option.value {
                                     let str = &val.to_string();
+                                    match convert_string(&str) {
+                                        Ok(tmp) => {
+                                            println!("{}", tmp);
+                                        }
+                                        Err(e) => {println!("{:?}", e)},
+                                    }
+
                                     let conversion = naive_convert(str);
                                     if let Ok(value) = conversion {
                                         new_timer.time = value;
@@ -132,9 +138,11 @@ impl EventHandler for Handler {
                                 }
                             };
 
-                            let job = Job::new(&naive_convert(&time).expect("could not convert"), move |_uuid, _l| {
+                            let job = Job::new(&naive_convert(&time).expect("could not convert"), move |uuid, _l| {
+                                println!("{}", uuid);
                                 channel_raid_warn(new_timer.clone());
                             });
+
                             
                             match job {
                                 Ok(job) => {
@@ -169,13 +177,15 @@ impl EventHandler for Handler {
                             if db_res.is_empty() {
                                 res.clear();
                                 res =
-                                    "No timers in the database yet! Use the /timer command to add one!"
+                                    "No timers in the database yet! Use the `/timer` command to add one!\nTo get help with creating a time the use the `/timerhelp` command"
                                     .to_string();
                                 } else {
                                     for timer in &db_res {
                                         res = res + "id: " + &timer.id.to_string() + "\n";
                                         res = res + "title: " + &timer.title.to_string() + "\n";
-                                        res = res + "recurring: " + &timer.recurring.to_string() + "\n";
+                                        //TODO: Print out what time the timer is fired
+                                        //res = res + "recurring: " + &timer.recurring.to_string() + "\n";
+                                        res = res + "time of fire: " + &timer.time.to_string() + "\n";
                                         res = res + "------";
                                     }
                                 };
@@ -189,28 +199,11 @@ impl EventHandler for Handler {
                         res
                     }
                 "delete_timer" => {
+                    // TODO: Also delete timer from currently running process.
+                    // probably by addin UUID from job to database entry, 
+                    // and useing sched_lock.remove(uuid) to do so
                     let command_options = &command.data.options; 
-                    let mut res = "";
-
-                    for option in command_options {
-                        if let "id" = option.name.as_str() {
-                            if let Some(val) = &option.value {
-                                let parsed_val =  val.to_string().parse();
-                                if let Ok(parsed) = parsed_val {
-                                    if let Ok(_) = delete_timer(&data, parsed).await {
-                                        res = "No errors while deleting timer";
-                                    } else {
-                                        res = "something went wrong while trying to delete the timer"
-                                    };
-                                } else {
-                                    res = "could not parse id, make sure it is an interger";
-                                }
-                            }
-                        } else {
-                            res = "unknown option";
-                        };
-                    };
-                    res.to_string()
+                    delete_timer(command_options, &data).await
                 }
                 _ => "not implemented :(".to_string(),
             };
@@ -225,20 +218,16 @@ impl EventHandler for Handler {
                             .kind(InteractionResponseType::ChannelMessageWithSource)
                             .interaction_response_data(|message| message.content(f_string))
                     })
-                .await
-                {
+                .await {
                     println!("Cannot respond to slash command: {}", why);
                 }
             }
-
-            //&m_split.remove(0);
-            //m_split.drain(0..).;
         }
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         //let commands = ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {commands}).await;
-        let pool = {
+        let _pool = {
             let data_read = &ctx.data.read().await;
 
             data_read
@@ -356,14 +345,28 @@ impl EventHandler for Handler {
     }
 }
 
-pub async fn delete_timer(pool: &PgPool, id: i32) -> Result<(), String> {
-    let db_res = crate::db::delete_timer(pool, id).await;
+pub async fn delete_timer(command: &Vec<ApplicationCommandInteractionDataOption> ,pool: &PgPool) -> String {
+    let mut res = "";
 
-    if let Ok(res) = db_res {
-        Ok(())
-    } else {
-        Err("Something went wrong while deleting the app".to_owned())
-    }
+    for option in command {
+        if let "id" = option.name.as_str() {
+            if let Some(val) = &option.value {
+                let parsed_val =  val.to_string().parse::<i32>();
+                if let Ok(parsed) = parsed_val {
+                    if let Ok(_) = crate::db::delete_timer(pool, parsed).await {
+                        res = "No errors while deleting timer";
+                    } else {
+                        res = "something went wrong while trying to delete the timer"
+                    };
+                } else {
+                    res = "could not parse id, make sure it is an interger";
+                }
+            }
+        } else {
+            res = "unknown option";
+        };
+    };
+    res.to_string()
 }
 
 pub fn split_to_discord_size(src: String) -> Vec<String> {
