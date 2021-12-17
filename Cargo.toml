@@ -9,7 +9,8 @@ edition = "2021"
 [dependencies]
 dotenv = "0.15.0"
 tokio = { version = "1.12.0", features = ["macros", "rt-multi-thread", "time", "full"] }
-sqlx = { version = "0.5.9", features = ["runtime-tokio-rustls", "postgres", "macros", "chrono", "decimal"] }
+sqlx = { version = "0.5.9", features = ["runtime-tokio-rustls", "postgres", "macros", "chrono",
+"decimal", "uuid"] }
 chrono = "0.4.19"
 uuid = {version = "0.8.2", features = ["v4"]}
 scheduler = {path = "./lib/scheduler"}
