@@ -2,7 +2,7 @@ use std::{env, fmt, str::FromStr, sync::Arc};
 
 use scheduler::*;
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
-use sqlx::{types::Decimal, Error, PgPool};
+use sqlx::{query_as, types::Decimal, Error, PgPool};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -114,7 +114,8 @@ impl Timer {
         }
     }
 
-    ///
+    /// Get the next upcoming fire time in a human readable format
+    /// Ex: 2021-12-18 18:06:00
     pub fn get_human_time(&self) -> String {
         let crn = cron::Schedule::from_str(&self.time);
         if let Ok(val) = crn {
@@ -147,6 +148,7 @@ impl TypeMapKey for Schedule {
     type Value = Arc<Mutex<JobScheduler>>;
 }
 
+//TODO: Make docs
 pub async fn establish_db_connection() -> PgPool {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let mypool = PgPool::connect(&database_url)
@@ -156,6 +158,7 @@ pub async fn establish_db_connection() -> PgPool {
     mypool
 }
 
+//TODO: Make docs
 pub async fn add_timer(pool: &PgPool, timer: &NewTimer) -> Result<i32, Error> {
     let res = query_as!(
         DbTimer,
@@ -178,6 +181,7 @@ RETURNING *"#,
     Ok(res)
 }
 
+//TODO: Make docs
 pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Error> {
     let res = query!(
         "WITH deleted AS (
@@ -194,6 +198,21 @@ pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Erro
     Ok(res)
 }
 
+pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<Uuid, Error> {
+    let res = query!(
+        r#"SELECT uuid
+        FROM timers
+        WHERE id=$1"#,
+        id
+    )
+    .map(|u| u.uuid)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(res)
+}
+
+//TODO: Make docs
 pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     let res = query_as!(
         DbTimer,
@@ -220,6 +239,7 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     Ok(res)
 }
 
+//TODO: Make docs
 pub fn naive_convert(input: &str) -> Result<String, &str> {
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();

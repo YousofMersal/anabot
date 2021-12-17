@@ -171,19 +171,38 @@ impl EventHandler for Handler {
                         res
                     }
                 "delete_timer" => {
-                    // TODO: Also delete timer from currently running process.
-                    // probably by addin UUID from job to database entry, 
-                    // and useing sched_lock.remove(uuid) to do so
+                    // TODO:fix this so when everything is correct it responds correctly
                     let command_options = &command.data.options; 
+                    let mut res = String::new();
                     if let Some(id) = &command_options[0].value {
                         if let Ok(parsed_val) = id.to_string().parse::<i32>(){
-                            delete_timer(parsed_val, &data).await
-                        }else {
-                            "could not parse ID, make sure it's a positive whole number".to_string()
+                            {
+                                let data_read = &ctx.data.read().await;
+
+                                let mut schedule = data_read
+                                    .get::<Schedule>()
+                                    .expect("Something went wrong gettnig the database connection")
+                                    .lock()
+                                    .await;
+
+                                let timer_uuid = get_uuid(parsed_val, &data).await;
+
+                                if let Ok(is_uuid) = timer_uuid {
+                                    if let Err(removal_erro) = schedule.remove(&is_uuid) {
+                                        eprintln!("remove from sched error: {}", removal_erro);
+                                        res = String::from("Something went wrong while removing timer");
+                                    }
+                                }
+                            };
+
+                            delete_timer(parsed_val, &data).await;
+                        } else {
+                            res = "could not parse ID, make sure it's a positive whole number".to_string();
                         }
                     } else {
-                        "could not get id from command please try again".to_string()
+                        res = "could not get id from command please try again".to_string();
                     }
+                    res
                 }
                 _ => "not implemented :(".to_string(),
             };
