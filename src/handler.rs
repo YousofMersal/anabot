@@ -1,25 +1,18 @@
-#![allow(dead_code)]
-
 use scheduler::Job;
+use serenity::model::id::GuildId;
 use sqlx::PgPool;
 use crate::db::*;
 
-
-#[allow(unused_imports)]
 use crate::channel_raid_warn;
 
-#[allow(unused_imports)]
 use serenity::{
     async_trait,
     model::{
-        channel::Message,
         gateway::Ready,
-        guild::{Guild, PartialGuild},
-        id::{ChannelId, CommandId, GuildId},
         interactions::{
             application_command::{
-                ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
-                ApplicationCommandOptionType, ApplicationCommandInteractionDataOption
+                 ApplicationCommandInteractionDataOptionValue,
+                ApplicationCommandOptionType 
             },
             Interaction, InteractionResponseType,
         },
@@ -46,7 +39,7 @@ impl EventHandler for Handler {
         if let Interaction::ApplicationCommand(command) = interaction {
             let content = match command.data.name.as_str() {
                 "timer" => {
-                    let mut res = "";
+                    let mut res = String::new();
                     let command_options = &command.data.options;
 
                     let mut new_timer = NewTimer {
@@ -76,33 +69,26 @@ impl EventHandler for Handler {
                             "time" => {
                                 if let Some(val) = &option.value {
                                     let str = &val.to_string();
-                                    match convert_string(&str) {
-                                        Ok(tmp) => {
-                                            println!("{}", tmp);
+                                    if let Ok(time) = is_valid_cron(&str) {
+                                        let conversion = naive_convert(&time);
+                                        if let Ok(value) = conversion {
+                                            new_timer.time = value;
+                                        } else {
+                                            res = "Time format malformed, for help use /timerhelp".to_string();
                                         }
-                                        Err(e) => {println!("{:?}", e)},
-                                    }
-
-                                    let conversion = naive_convert(str);
-                                    if let Ok(value) = conversion {
-                                        new_timer.time = value;
                                     } else {
-                                        res = "Time format malformed, for help use /timerhelp"
+                                        res = "Time format malformed, for help use /timerhelp".to_string();
                                     }
-
                                 }
                             }
                             "channel" => {
                                 if let Some(opt) = &option.resolved {
                                     match opt {
                                         ApplicationCommandInteractionDataOptionValue::Channel(chan) => {
-                                            match chan.kind {
-                                                serenity::model::channel::ChannelType::Text => {
-                                                    new_timer.channel = *chan.id.as_u64();
-                                                },
-                                                _ => {
-                                                    res = "Please select a normal text channel when selecting channel to announce in.";
-                                                }
+                                            if let serenity::model::channel::ChannelType::Text = chan.kind {
+                                                new_timer.channel = *chan.id.as_u64();
+                                            } else {
+                                                res = "Please select a normal text channel when selecting channel to announce in.".to_string();
                                             }
                                         },
                                         _ => eprintln!("unknown option found while createing new timer")
@@ -112,52 +98,38 @@ impl EventHandler for Handler {
                             }
                             _ => eprintln!("unknown option found while createing new timer")
                         }
-
                     }
 
-                    if let Ok(_) = add_timer(&data, &new_timer).await {
-                        {
-                            let data_read = &ctx.data.write().await;
+                    let clock = &mut new_timer.clone();
+                    let mut job_added = false;
 
-                            let schedule = data_read
-                                .get::<Schedule>()
-                                .expect("Something went wrong gettnig the database connection")
-                                .clone();
+                    {
+                        let data_read = &ctx.data.write().await;
 
-                            let mut sched_lock = schedule.lock().await;
+                        let schedule = data_read
+                            .get::<Schedule>()
+                            .expect("Something went wrong getting the database connection");
 
-                            let mut time = "";
+                        let mut sched_lock = schedule.lock().await;
 
-                            for option in command_options {
-                                if option.name == "time" {
-                                    if let Some(o_time) = &option.value {
-                                        if let Some(s) = o_time.as_str() {
-                                            time = s;
-                                        }
-                                    }
-                                }
-                            };
+                        let job = Job::new(&new_timer.time.clone(), move |_uuid, _l| {
+                            channel_raid_warn(new_timer.clone());
+                        });
 
-                            let job = Job::new(&naive_convert(&time).expect("could not convert"), move |uuid, _l| {
-                                println!("{}", uuid);
-                                channel_raid_warn(new_timer.clone());
-                            });
+                        if let Ok(j) = job {
+                            let guid = j.guid().clone();
+                            clock.uuid = guid;
+                            sched_lock.add(j).expect("error adding job to queue"); 
+                            job_added = true;
+                            res = "Timer succesfully registered".to_string();
+                        }
+                    }
 
-                            
-                            match job {
-                                Ok(job) => {
-                                    sched_lock.add(job).expect("error adding job to queue"); 
-                                }
-                                Err(e) => {
-                                    println!("error adding job?: {}", e);
-                                    panic!();
-                                }
-                            }
-                        };
-
-                        res = "Timer succesfully registered"
-                    } 
-
+                    if job_added {
+                        if let Err(_) = add_timer(&data, clock).await {
+                            res = "could not add the timer to the database".to_string()
+                        } 
+                    }
 
                     res.to_string()
                 }
@@ -183,9 +155,9 @@ impl EventHandler for Handler {
                                     for timer in &db_res {
                                         res = res + "id: " + &timer.id.to_string() + "\n";
                                         res = res + "title: " + &timer.title.to_string() + "\n";
-                                        //TODO: Print out what time the timer is fired
                                         //res = res + "recurring: " + &timer.recurring.to_string() + "\n";
-                                        res = res + "time of fire: " + &timer.time.to_string() + "\n";
+                                        res = res + "Next time of fire: " + &timer.get_human_time() + "\n";
+                                        res = res + "Set timer: " + &timer.time.to_string() + "\n";
                                         res = res + "------";
                                     }
                                 };
@@ -203,7 +175,15 @@ impl EventHandler for Handler {
                     // probably by addin UUID from job to database entry, 
                     // and useing sched_lock.remove(uuid) to do so
                     let command_options = &command.data.options; 
-                    delete_timer(command_options, &data).await
+                    if let Some(id) = &command_options[0].value {
+                        if let Ok(parsed_val) = id.to_string().parse::<i32>(){
+                            delete_timer(parsed_val, &data).await
+                        }else {
+                            "could not parse ID, make sure it's a positive whole number".to_string()
+                        }
+                    } else {
+                        "could not get id from command please try again".to_string()
+                    }
                 }
                 _ => "not implemented :(".to_string(),
             };
@@ -345,30 +325,22 @@ impl EventHandler for Handler {
     }
 }
 
-pub async fn delete_timer(command: &Vec<ApplicationCommandInteractionDataOption> ,pool: &PgPool) -> String {
-    let mut res = "";
+/// Takes and ID and a refference to a "pool" and, delets a row with the given ID
+pub async fn delete_timer(val: i32 ,pool: &PgPool) -> String {
+    let mut res: String = String::new();
 
-    for option in command {
-        if let "id" = option.name.as_str() {
-            if let Some(val) = &option.value {
-                let parsed_val =  val.to_string().parse::<i32>();
-                if let Ok(parsed) = parsed_val {
-                    if let Ok(_) = crate::db::delete_timer(pool, parsed).await {
-                        res = "No errors while deleting timer";
-                    } else {
-                        res = "something went wrong while trying to delete the timer"
-                    };
-                } else {
-                    res = "could not parse id, make sure it is an interger";
-                }
-            }
-        } else {
-            res = "unknown option";
-        };
+    if let Ok(num) = db_delete_timer(pool, val).await {
+        if let Some(rows_deleted) = num {
+            res = format!("Deleted {} timers", rows_deleted)
+        }
+    } else {
+        res = "something went wrong while trying to delete the timer".to_string();
     };
+
     res.to_string()
 }
 
+/// Splits string into parts that Discord can digest.
 pub fn split_to_discord_size(src: String) -> Vec<String> {
     let mut chars = src.chars();
     let sub_string = (0..)

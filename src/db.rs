@@ -1,13 +1,9 @@
-#![allow(dead_code)]
 use std::{env, fmt, str::FromStr, sync::Arc};
 
 use scheduler::*;
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
-use sqlx::{
-    postgres::{PgQueryResult, PgRow},
-    types::Decimal,
-    Error, PgPool,
-};
+use sqlx::{types::Decimal, Error, PgPool};
+use uuid::Uuid;
 
 #[derive(Debug)]
 struct WeekError {
@@ -46,18 +42,9 @@ enum WeekDay {
     All,
 }
 
-impl WeekDay {
-    fn to_string(s: &Self) -> &str {
-        match s {
-            WeekDay::Mon => "Mon",
-            WeekDay::Tue => "Tue",
-            WeekDay::Wed => "Wed",
-            WeekDay::Thu => "Thu",
-            WeekDay::Fri => "Fri",
-            WeekDay::Sat => "Sat",
-            WeekDay::Sun => "Sun",
-            WeekDay::All => "*",
-        }
+impl fmt::Display for WeekDay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -65,25 +52,19 @@ impl FromStr for WeekDay {
     type Err = WeekError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Mon" => Ok(WeekDay::Mon),
-            "Tue" => Ok(WeekDay::Tue),
-            "Wed" => Ok(WeekDay::Wed),
-            "Thu" => Ok(WeekDay::Thu),
-            "Fri" => Ok(WeekDay::Fri),
-            "Sat" => Ok(WeekDay::Sat),
-            "Sun" => Ok(WeekDay::Sun),
+        let sl: &str = &s.to_lowercase();
+        match sl {
+            "mon" => Ok(WeekDay::Mon),
+            "tue" => Ok(WeekDay::Tue),
+            "wed" => Ok(WeekDay::Wed),
+            "thu" => Ok(WeekDay::Thu),
+            "fri" => Ok(WeekDay::Fri),
+            "sat" => Ok(WeekDay::Sat),
+            "sun" => Ok(WeekDay::Sun),
             "*" => Ok(WeekDay::All),
-            // TODO: Make timers work and not fire this mistake on Kleeny star
             _ => Err(WeekError::new("Invalid WeekDay")),
         }
     }
-}
-
-enum Time {
-    Timer(Timer),
-    DbTimer(DbTimer),
-    NewTimer(NewTimer),
 }
 
 #[derive(Default, Clone)]
@@ -95,6 +76,7 @@ pub struct Timer {
     pub raid_lead: Option<String>,
     pub time: String,
     pub channel: u64,
+    pub uuid: Uuid,
 }
 
 pub struct DbTimer {
@@ -105,6 +87,7 @@ pub struct DbTimer {
     pub raid_lead: Option<String>,
     pub time: String,
     pub channel: Decimal,
+    pub uuid: Uuid,
 }
 
 #[derive(Default, Clone)]
@@ -115,10 +98,11 @@ pub struct NewTimer {
     pub raid_lead: Option<String>,
     pub time: String,
     pub channel: u64,
+    pub uuid: Uuid,
 }
 
 impl Timer {
-    pub fn to_new_timer(&self) -> NewTimer {
+    pub fn _to_new_timer(&self) -> NewTimer {
         NewTimer {
             title: self.title.clone(),
             time: self.time.clone(),
@@ -126,6 +110,21 @@ impl Timer {
             recurring: self.recurring,
             raid_lead: self.raid_lead.clone(),
             channel: self.channel,
+            uuid: self.uuid,
+        }
+    }
+
+    ///
+    pub fn get_human_time(&self) -> String {
+        let crn = cron::Schedule::from_str(&self.time);
+        if let Ok(val) = crn {
+            if let Some(date) = val.upcoming(chrono::Local).next() {
+                date.naive_local().to_string()
+            } else {
+                "could not convert time".to_owned()
+            }
+        } else {
+            "could not convert time".to_owned()
         }
     }
 }
@@ -157,32 +156,39 @@ pub async fn establish_db_connection() -> PgPool {
     mypool
 }
 
-pub async fn add_timer(pool: &PgPool, timer: &NewTimer) -> Result<Vec<PgRow>, Error> {
+pub async fn add_timer(pool: &PgPool, timer: &NewTimer) -> Result<i32, Error> {
     let res = query_as!(
-        Timer,
+        DbTimer,
         r#"
-INSERT INTO timers (title, body, recurring, raid_lead, time, channel)
-Values ($1, $2, $3, $4, $5, $6)"#,
+INSERT INTO timers (title, body, recurring, raid_lead, time, channel, uuid)
+Values ($1, $2, $3, $4, $5, $6, $7)
+RETURNING *"#,
         timer.title,
         timer.body,
         timer.recurring,
         timer.raid_lead,
         timer.time,
         Decimal::from(timer.channel),
+        timer.uuid
     )
-    .fetch_all(pool)
+    .map(|t| t.id)
+    .fetch_one(pool)
     .await?;
 
     Ok(res)
 }
 
-pub async fn delete_timer(pool: &PgPool, id: i32) -> Result<PgQueryResult, Error> {
+pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Error> {
     let res = query!(
-        "DELETE FROM timers
-            WHERE id = $1",
+        "WITH deleted AS (
+        DELETE FROM timers
+            WHERE id = $1
+            RETURNING *)
+         SELECT count(*) FROM deleted",
         id
     )
-    .execute(pool)
+    .map(|num| num.count)
+    .fetch_one(pool)
     .await?;
 
     Ok(res)
@@ -205,6 +211,7 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
             raid_lead: dbt.raid_lead,
             time: dbt.time,
             channel: num,
+            uuid: dbt.uuid,
         }
     })
     .fetch_all(pool)
@@ -246,23 +253,23 @@ pub fn naive_convert(input: &str) -> Result<String, &str> {
 /// let cron-t = anabot::convert_string("12 00 Thu");
 /// assert_eq!(cron-t, "* 12 00 * * Thu *");
 /// ```
-pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
-    let mut res: Result<&str, Box<dyn std::error::Error>> = Ok(input);
+pub fn is_valid_cron(input: &str) -> Result<String, String> {
+    let res = input.to_string();
 
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
     //Check amount of arguments
-    if split.len() <= 3 {
+    if split.len() == 3 {
         //Check hour
         let hour_split = split[0].split(',');
         for hour_u in hour_split {
             let hour_s = hour_u.parse::<i32>();
             if let Ok(hour) = hour_s {
                 if hour > 23 || hour < 0 {
-                    res = Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "Invalid format, reason: Hour must be 24 hour format and between 0 and 23",
-                    )));
+                    return Err(
+                        "Invalid format, reason: Hour must be 24 hour format and between 0 and 23"
+                            .to_string(),
+                    );
                 }
             }
         }
@@ -273,10 +280,9 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
             let min_s = min_u.parse::<i32>();
             if let Ok(min) = min_s {
                 if min > 59 || min < 0 {
-                    res = Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "Invalif format, reason: Minutes must be between 0 and 59.",
-                    )));
+                    return Err(
+                        "Invalif format, reason: Minutes must be between 0 and 59.".to_string()
+                    );
                 }
             }
         }
@@ -284,8 +290,9 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
         //Check day
         let day_split = split[2].split(',');
         for day_u in day_split {
-            if let Err(e) = WeekDay::from_str(day_u) {
-                res = Err(Box::new(e));
+            let day_u = day_u.trim_matches('"');
+            if let Err(week_err) = WeekDay::from_str(day_u) {
+                return Err(week_err.details.to_string());
             }
         }
 
@@ -295,19 +302,17 @@ pub fn convert_string(input: &str) -> Result<&str, Box<dyn std::error::Error>> {
                 let month_s = month_u.parse::<i32>();
                 if let Ok(month) = month_s {
                     if month > 1 || month < 12 {
-                        res = Err(Box::new(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "Invalif format, reason: Month must be between 1 and 12.",
-                        )));
+                        return Err(
+                            "Invalif format, reason: Month must be between 1 and 12.".to_string()
+                        );
                     }
                 }
             }
         }
     } else {
-        res = Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "could not convert string",
-        )));
+        return Err(
+            "could not convert string, double check that the format is correct.".to_string(),
+        );
     }
-    res
+    Ok(res)
 }

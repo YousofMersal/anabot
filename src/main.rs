@@ -6,29 +6,10 @@ use handler::*;
 #[macro_use]
 extern crate sqlx;
 
-// TODO test todo
+// TODO: test todo
 use dotenv;
 use scheduler::JobScheduler;
-#[allow(unused_imports)]
-use serenity::{
-    async_trait,
-    http::Http,
-    model::{
-        channel::Message,
-        gateway::Ready,
-        guild::{Guild, PartialGuild},
-        id::{ChannelId, CommandId, GuildId},
-        interactions::{
-            application_command::{
-                ApplicationCommand, ApplicationCommandInteractionDataOptionValue,
-                ApplicationCommandOptionType, ApplicationCommandPermission,
-                ApplicationCommandPermissionData, ApplicationCommandPermissionType,
-            },
-            Interaction, InteractionResponseType,
-        },
-    },
-    prelude::*,
-};
+use serenity::{http::Http, model::id::ChannelId, prelude::*};
 
 use serenity::{futures::lock::Mutex, model::channel::ReactionType};
 use std::{collections::HashSet, env, sync::Arc};
@@ -74,6 +55,7 @@ async fn main() {
     }
 }
 
+//NOTE: Make better documentation
 fn channel_raid_warn(time: NewTimer) {
     let token = env::var("DISCORD_TOKEN").unwrap();
     let id: u64 = 852192886883090473;
@@ -109,6 +91,7 @@ fn channel_raid_warn(time: NewTimer) {
     }));
 }
 
+/// Connects to discord using the ENV variable DISCORD_TOKEN
 fn establish_discord_connection() -> (serenity::http::Http, String) {
     let token = if let Ok(token) = env::var("DISCORD_TOKEN") {
         token
