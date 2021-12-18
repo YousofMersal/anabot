@@ -171,7 +171,6 @@ impl EventHandler for Handler {
                         res
                     }
                 "delete_timer" => {
-                    // TODO:fix this so when everything is correct it responds correctly
                     let command_options = &command.data.options; 
                     let mut res = String::new();
                     let mut queue_removed = false;
@@ -239,6 +238,11 @@ impl EventHandler for Handler {
                 .clone()
         };
 
+        for r_guild in ready.guilds {
+            register_commends(&r_guild.id(), &ctx).await;
+        }
+
+
 
         ctx.set_presence(
             Some(serenity::model::gateway::Activity::playing(
@@ -248,89 +252,6 @@ impl EventHandler for Handler {
         )
             .await;
 
-        GuildId(326330465218985985)
-            .create_application_command(&ctx.http, |command| {
-                command
-                    .name("list")
-                    .description("List all timers set for the bot")
-                    .default_permission(true)
-            })
-        .await
-            .unwrap();
-
-        GuildId(326330465218985985)
-            .create_application_command(&ctx.http, |command| {
-                command
-                    .name("timehelp")
-                    .description("Get a detailed description of oh the timer format works")
-                    .default_permission(true)
-            })
-        .await
-            .unwrap();
-
-        GuildId(326330465218985985)
-            .create_application_command(&ctx.http, |command| {
-                command
-                    .name("delete_timer")
-                    .description("Get a detailed description of oh the timer format works")
-                    .create_option(|option| {
-                        option
-                            .name("id")
-                            .description("The id of the timer to be deleted")
-                            .required(true)
-                            .kind(ApplicationCommandOptionType::Number)
-                    })
-            }).await
-            .unwrap();
-
-        GuildId(326330465218985985)
-            .create_application_command(&ctx.http, |command| {
-                command
-                    .name("timer")
-                    .description("Create a timer that will create a message in raid_chat with the given options")
-                    .create_option(|option| {
-                        option
-                            .name("title")
-                            .description("Title of the message that will be sent out. Must be less than 250 characters. Required")
-                            .required(true)
-                            .kind(ApplicationCommandOptionType::String)
-                    })
-                .create_option(|option| {
-                    option
-                        .name("time")
-                        .description("When the timer should send a message. See /timehelp for detailed description of format. Required")
-                        .required(true)
-                        .kind(ApplicationCommandOptionType::String)
-                })
-                .create_option(|option| {
-                    option
-                        .name("channel")
-                        .description("The channel to send the message in")
-                        .required(true)
-                        .kind(ApplicationCommandOptionType::Channel)
-                })
-                .create_option(|option| {
-                    option
-                        .name("body")
-                        .description("Body of the message that will be sent out. Must be less than 2000 characters. Optional")
-                        .required(false)
-                        .kind(ApplicationCommandOptionType::String)
-                })
-                .create_option(|option| {
-                    option
-                        .name("raidlead")
-                        .description("Raid leader of the raid. Must be less than 500 characters. Optional")
-                        .required(false)
-                        .kind(ApplicationCommandOptionType::String)
-                })
-                .create_option(|option| {
-                    option
-                        .name("dateofmonth")
-                        .description("Date of the month must be numerical and between 1 and 31. Optional")
-                        .required(false)
-                        .kind(ApplicationCommandOptionType::String)
-                })
-            }).await.unwrap();
 
         {
             let data_read = &ctx.data.read().await;
@@ -361,6 +282,94 @@ pub async fn delete_timer(val: i32 ,pool: &PgPool) -> String {
     };
 
     res.to_string()
+}
+
+#[allow(dead_code)]
+pub async fn register_commends(guildid: &GuildId, ctx: &Context) {
+    guildid
+        .create_application_command(&ctx.http, |command| {
+            command
+                .name("list")
+                .description("List all timers set for the bot")
+                .default_permission(true)
+        })
+    .await
+        .unwrap();
+
+    guildid
+        .create_application_command(&ctx.http, |command| {
+            command
+                .name("timehelp")
+                .description("Get a detailed description of oh the timer format works")
+                .default_permission(true)
+        })
+    .await
+        .unwrap();
+
+    guildid
+        .create_application_command(&ctx.http, |command| {
+            command
+                .name("delete_timer")
+                .description("Get a detailed description of oh the timer format works")
+                .create_option(|option| {
+                    option
+                        .name("id")
+                        .description("The id of the timer to be deleted")
+                        .required(true)
+                        .kind(ApplicationCommandOptionType::Number)
+                })
+        }).await
+    .unwrap();
+
+    guildid
+        .create_application_command(&ctx.http, |command| {
+            command
+                .name("timer")
+                .description("Create a timer that will create a message in raid_chat with the given options")
+                .create_option(|option| {
+                    option
+                        .name("title")
+                        .description("Title of the message that will be sent out. Must be less than 250 characters. Required")
+                        .required(true)
+                        .kind(ApplicationCommandOptionType::String)
+                })
+            .create_option(|option| {
+                option
+                    .name("time")
+                    .description("When the timer should send a message. See /timehelp for detailed description of format. Required")
+                    .required(true)
+                    .kind(ApplicationCommandOptionType::String)
+            })
+            .create_option(|option| {
+                option
+                    .name("channel")
+                    .description("The channel to send the message in")
+                    .required(true)
+                    .kind(ApplicationCommandOptionType::Channel)
+            })
+            .create_option(|option| {
+                option
+                    .name("body")
+                    .description("Body of the message that will be sent out. Must be less than 2000 characters. Optional")
+                    .required(false)
+                    .kind(ApplicationCommandOptionType::String)
+            })
+            .create_option(|option| {
+                option
+                    .name("raidlead")
+                    .description("Raid leader of the raid. Must be less than 500 characters. Optional")
+                    .required(false)
+                    .kind(ApplicationCommandOptionType::String)
+            })
+            .create_option(|option| {
+                option
+                    .name("dateofmonth")
+                    .description("Date of the month must be numerical and between 1 and 31. Optional")
+                    .required(false)
+                    .kind(ApplicationCommandOptionType::String)
+            })
+        }).await.unwrap();
+
 }
 
 /// Splits string into parts that Discord can digest.
