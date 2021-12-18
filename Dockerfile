@@ -1,22 +1,23 @@
-FROM lukemathwalker/cargo-chef as planner
-WORKDIR /data/anabot
+# Using the `rust-musl-builder` as base image, instead of 
+# the official Rust toolchain
+FROM ekidd/rust-musl-builder:1.51.0 AS chef
+USER root
+RUN cargo install cargo-chef
+WORKDIR /anabot
+
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM lukemathwalker/cargo-chef as cacher
-WORKDIR /data/anabot
-COPY --from=planner /data/anabot/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+FROM chef AS builder
+COPY --from=planner /anabot/recipe.json recipe.json
+# Notice that we are specifying the --target flag!
+RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
+COPY . .
+RUN cargo build --release --target x86_64-unknown-linux-musl --bin anabot
 
-FROM rust:latest as builder 
-WORKDIR /data/anabot
-COPY . . 
-#Copy cache'd deps'
-COPY --from=cacher /data/anabot/target /target
-COPY --from=cacher $CARGO_HOME $CARGO_HOME
-RUN cargo build --release --bin anabot
-
-FROM debian:buster-slim as runtime
-WORKDIR /data/anabot
-COPY --from=builder /data/anabot/target/release/anabot /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/anabot"]
+FROM alpine AS runtime
+RUN addgroup -S myuser && adduser -S myuser -G myuser
+COPY --from=builder /anabot/target/x86_64-unknown-linux-musl/release/anabot /usr/local/bin/
+USER myuser
+CMD ["/usr/local/bin/anabot"]
