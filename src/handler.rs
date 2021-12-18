@@ -174,6 +174,7 @@ impl EventHandler for Handler {
                     // TODO:fix this so when everything is correct it responds correctly
                     let command_options = &command.data.options; 
                     let mut res = String::new();
+                    let mut queue_removed = false;
                     if let Some(id) = &command_options[0].value {
                         if let Ok(parsed_val) = id.to_string().parse::<i32>(){
                             {
@@ -191,11 +192,14 @@ impl EventHandler for Handler {
                                     if let Err(removal_erro) = schedule.remove(&is_uuid) {
                                         eprintln!("remove from sched error: {}", removal_erro);
                                         res = String::from("Something went wrong while removing timer");
+                                    } else {
+                                        queue_removed = true;
                                     }
                                 }
                             };
-
-                            delete_timer(parsed_val, &data).await;
+                            if queue_removed {
+                                res = delete_timer(parsed_val, &data).await;
+                            };
                         } else {
                             res = "could not parse ID, make sure it's a positive whole number".to_string();
                         }
