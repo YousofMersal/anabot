@@ -8,8 +8,8 @@ extern crate sqlx;
 
 // TODO: test todo
 use dotenv;
-use scheduler::JobScheduler;
 use serenity::{http::Http, model::id::ChannelId, prelude::*};
+use tokio_cron_scheduler::JobScheduler;
 
 use serenity::{futures::lock::Mutex, model::channel::ReactionType};
 use std::{collections::HashSet, env, sync::Arc};

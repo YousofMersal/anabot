@@ -1,8 +1,9 @@
 use std::{env, fmt, str::FromStr, sync::Arc};
 
-use scheduler::*;
+use chrono::{DateTime, Local, Utc};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
 use sqlx::{query_as, types::Decimal, Error, PgPool};
+use tokio_cron_scheduler::*;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -119,8 +120,9 @@ impl Timer {
     pub fn get_human_time(&self) -> String {
         let crn = cron::Schedule::from_str(&self.time);
         if let Ok(val) = crn {
-            if let Some(date) = val.upcoming(chrono::Local).next() {
-                date.naive_local().to_string()
+            if let Some(date) = val.upcoming(chrono::Utc).next() {
+                let c: DateTime<Local> = DateTime::from(date);
+                c.naive_local().to_string()
             } else {
                 "could not convert time".to_owned()
             }
@@ -244,19 +246,21 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
 pub fn naive_convert(input: &str) -> Result<String, &str> {
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
+    let local_to_utc_hour = &split[0].trim_matches('"').parse::<i32>().unwrap()
+        - (Local::now().offset().local_minus_utc() / 3600);
     let res;
     if split.len() == 3 {
         res = format!(
             "0 {} {} * * {}",
             split[1].trim_matches('"'),
-            split[0].trim_matches('"'),
+            local_to_utc_hour.to_string(),
             split[2].trim_matches('"')
         );
     } else if split.len() == 4 {
         res = format!(
             "0 {} {} * {} {}",
             split[1].trim_matches('"'),
-            split[0].trim_matches('"'),
+            local_to_utc_hour.to_string(),
             split[2].trim_matches('"'),
             split[3].trim_matches('"')
         );

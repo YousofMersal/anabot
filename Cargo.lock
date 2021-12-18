@@ -33,13 +33,13 @@ name = "anabot"
 version = "0.2.2-alpha"
 dependencies = [
  "chrono",
- "cron",
+ "cron 0.9.0",
  "dotenv",
  "regex",
- "scheduler",
  "serenity",
  "sqlx",
  "tokio",
+ "tokio-cron-scheduler",
  "uuid",
 ]
 
@@ -199,6 +199,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "738c290dfaea84fc1ca15ad9c168d083b05a714e1efddd8edaab678dc28d2836"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "cron"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "628a3464535cee4e75af89e8c293bab926deaddfa166553b75029066c846be3f"
+dependencies = [
+ "chrono",
+ "nom 4.1.1",
 ]
 
 [[package]]
@@ -1153,16 +1163,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73b4b750c782965c211b42f022f59af1fbceabdd026623714f104152f1ec149f"
 
 [[package]]
-name = "scheduler"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "cron",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1515,6 +1515,18 @@ dependencies = [
  "signal-hook-registry",
  "tokio-macros",
  "winapi",
+]
+
+[[package]]
+name = "tokio-cron-scheduler"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f16e49c5ca6199f6af561fd72370f29888a99859d7628263bfb6f88dc7d1463"
+dependencies = [
+ "chrono",
+ "cron 0.8.0",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

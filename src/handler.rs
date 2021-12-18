@@ -1,4 +1,4 @@
-use scheduler::Job;
+use tokio_cron_scheduler::Job;
 use serenity::model::id::GuildId;
 use sqlx::PgPool;
 use crate::db::*;
