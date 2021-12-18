@@ -174,7 +174,7 @@ impl EventHandler for Handler {
                     }
                 "delete_timer" => {
                     let command_options = &command.data.options; 
-                    let mut res = "".to_string();
+                    let res;
                     let mut queue_removed = false;
                     if let Some(id) = &command_options[0].value {
                         if let Ok(parsed_val) = id.to_string().parse::<i32>(){
@@ -190,11 +190,9 @@ impl EventHandler for Handler {
                                 let timer_uuid = get_uuid(parsed_val, &data).await;
 
                                 if let Ok(is_uuid) = timer_uuid {
-                                    if let Err(_) = schedule.remove(&is_uuid) {
-                                        res = "Something went wrong while removing timer".to_string();
-                                    } else {
+                                    if let Ok(_) = schedule.remove(&is_uuid) {
                                         queue_removed = true;
-                                    }
+                                    } 
                                 }
                             };
                             if queue_removed {

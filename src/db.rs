@@ -1,6 +1,6 @@
 use std::{env, fmt, str::FromStr, sync::Arc};
 
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
 use sqlx::{query_as, types::Decimal, Error, PgPool};
 use tokio_cron_scheduler::*;
