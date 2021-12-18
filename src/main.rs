@@ -55,13 +55,18 @@ async fn main() {
     }
 }
 
-//NOTE: Make better documentation
+// TODO: make this general for any channel from any guild
 fn channel_raid_warn(time: NewTimer) {
     let token = env::var("DISCORD_TOKEN").unwrap();
-    let id: u64 = 852192886883090473;
+    let id: u64 = env::var("APPLICATION_ID")
+        .unwrap()
+        .parse()
+        .unwrap_or_else(|e| {
+            panic!("Error finding application id! {}", e);
+        });
     let http = Http::new_with_token_application_id(&token, id);
 
-    let channel = ChannelId(326349171940655105);
+    let channel = ChannelId(time.channel);
 
     tokio::spawn(channel.send_message(http, move |m| {
         m.add_embed(|e| {
