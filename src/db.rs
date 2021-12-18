@@ -239,7 +239,8 @@ pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     Ok(res)
 }
 
-//TODO: Make docs
+/// Naively put the string recived into a cron time format.
+/// Anything given is assumed to be correct.
 pub fn naive_convert(input: &str) -> Result<String, &str> {
     let split_itt = input.split(" ");
     let split: Vec<&str> = split_itt.collect();
