@@ -103,32 +103,34 @@ impl EventHandler for Handler {
                     let clock = &mut new_timer.clone();
                     let mut job_added = false;
 
-                    {
-                        let data_read = &ctx.data.write().await;
+                    if new_timer.channel != (0 as u64) {
+                        {
+                            let data_read = &ctx.data.write().await;
 
-                        let schedule = data_read
-                            .get::<Schedule>()
-                            .expect("Something went wrong getting the database connection");
+                            let schedule = data_read
+                                .get::<Schedule>()
+                                .expect("Something went wrong getting the database connection");
 
-                        let mut sched_lock = schedule.lock().await;
+                            let mut sched_lock = schedule.lock().await;
 
-                        let job = Job::new(&new_timer.time.clone(), move |_uuid, _l| {
-                            channel_raid_warn(new_timer.clone());
-                        });
+                            let job = Job::new(&new_timer.time.clone(), move |_uuid, _l| {
+                                channel_raid_warn(new_timer.clone());
+                            });
 
-                        if let Ok(j) = job {
-                            let guid = j.guid().clone();
-                            clock.uuid = guid;
-                            sched_lock.add(j).expect("error adding job to queue"); 
-                            job_added = true;
-                            res = "Timer succesfully registered".to_string();
+                            if let Ok(j) = job {
+                                let guid = j.guid().clone();
+                                clock.uuid = guid;
+                                sched_lock.add(j).expect("error adding job to queue"); 
+                                job_added = true;
+                                res = "Timer succesfully registered".to_string();
+                            }
                         }
-                    }
 
-                    if job_added {
-                        if let Err(_) = add_timer(&data, clock).await {
-                            res = "could not add the timer to the database".to_string()
-                        } 
+                        if job_added {
+                            if let Err(_) = add_timer(&data, clock).await {
+                                res = "Could not add the timer to the database".to_string()
+                            } 
+                        }
                     }
 
                     res.to_string()
@@ -172,7 +174,7 @@ impl EventHandler for Handler {
                     }
                 "delete_timer" => {
                     let command_options = &command.data.options; 
-                    let mut res = String::new();
+                    let mut res = "".to_string();
                     let mut queue_removed = false;
                     if let Some(id) = &command_options[0].value {
                         if let Ok(parsed_val) = id.to_string().parse::<i32>(){
@@ -188,9 +190,8 @@ impl EventHandler for Handler {
                                 let timer_uuid = get_uuid(parsed_val, &data).await;
 
                                 if let Ok(is_uuid) = timer_uuid {
-                                    if let Err(removal_erro) = schedule.remove(&is_uuid) {
-                                        eprintln!("remove from sched error: {}", removal_erro);
-                                        res = String::from("Something went wrong while removing timer");
+                                    if let Err(_) = schedule.remove(&is_uuid) {
+                                        res = "Something went wrong while removing timer".to_string();
                                     } else {
                                         queue_removed = true;
                                     }
@@ -198,16 +199,18 @@ impl EventHandler for Handler {
                             };
                             if queue_removed {
                                 res = delete_timer(parsed_val, &data).await;
+                            } else {
+                                res = "Nothing with that id found".to_string();
                             };
                         } else {
-                            res = "could not parse ID, make sure it's a positive whole number".to_string();
+                            res = "Could not parse ID, make sure it's a positive whole number".to_string();
                         }
                     } else {
-                        res = "could not get id from command please try again".to_string();
+                        res = "Could not get id from command please try again".to_string();
                     }
                     res
                 }
-                _ => "not implemented :(".to_string(),
+                _ => "Not implemented :(".to_string(),
             };
 
             let m_split = split_to_discord_size(content.clone());
@@ -239,6 +242,7 @@ impl EventHandler for Handler {
         };
 
         for r_guild in ready.guilds {
+            //println!("{}",&r_guild;
             register_commends(&r_guild.id(), &ctx).await;
         }
 
