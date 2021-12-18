@@ -1,0 +1,171 @@
+{
+  "db": "PostgreSQL",
+  "0edfcfce842a73985d957bdfa6e7edc827762da86c6f94a909c1604cddcc9666": {
+    "query": "WITH deleted AS (\n        DELETE FROM timers\n            WHERE id = $1\n            RETURNING *)\n         SELECT count(*) FROM deleted",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "count",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
+  "56a10f9ba26210436dd8c7cc1bfb7b81fcd6c0f273553c9d95ea2583ec122618": {
+    "query": "SELECT *\n        FROM timers",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "title",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "body",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "recurring",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "raid_lead",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "time",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "channel",
+          "type_info": "Numeric"
+        },
+        {
+          "ordinal": 7,
+          "name": "uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "8a15abad2b25d7b67121b584c8cfaf252280eff64b57354ab7819a4eb4ba6ddd": {
+    "query": "\nINSERT INTO timers (title, body, recurring, raid_lead, time, channel, uuid)\nValues ($1, $2, $3, $4, $5, $6, $7)\nRETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "title",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "body",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "recurring",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "raid_lead",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "time",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "channel",
+          "type_info": "Numeric"
+        },
+        {
+          "ordinal": 7,
+          "name": "uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Text",
+          "Bool",
+          "Varchar",
+          "Text",
+          "Numeric",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "9d8e7b489b6b517cac6f22ddc5326e20186942749b762f71fb352e91428870fb": {
+    "query": "SELECT uuid\n        FROM timers\n        WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  }
+}
