@@ -15,7 +15,7 @@ ENV SQLX_OFFLINE true
 RUN cargo build --release --bin anabot
 
 # We do not need the Rust toolchain to run the binary!
-FROM debian:buster-slim AS runtime
+FROM debian:bullseye-slim AS runtime
 WORKDIR /anabot
 COPY --from=builder /anabot/target/release/anabot /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/anabot"]
