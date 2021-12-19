@@ -6,6 +6,7 @@ use handler::*;
 #[macro_use]
 extern crate sqlx;
 
+// TODO: Add logging
 // TODO: test todo
 use dotenv;
 use serenity::{http::Http, model::id::ChannelId, prelude::*};
