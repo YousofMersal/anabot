@@ -150,8 +150,8 @@ impl TypeMapKey for Schedule {
     type Value = Arc<Mutex<JobScheduler>>;
 }
 
-//TODO: Make docs
-//TODO: Make the bot migrate the database when starting up
+/// Connect to the the postgresql database defined in DB_URI
+/// if no database exists it will be made on first connect
 pub async fn establish_db_connection() -> PgPool {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
@@ -178,7 +178,7 @@ pub async fn establish_db_connection() -> PgPool {
     mypool
 }
 
-//TODO: Make docs
+/// Add NewTimer to the database, and returns id as the Ok value
 pub async fn add_timer(pool: &PgPool, timer: &NewTimer) -> Result<i32, Error> {
     let res = query_as!(
         DbTimer,
@@ -201,7 +201,8 @@ RETURNING *"#,
     Ok(res)
 }
 
-//TODO: Make docs
+/// Delete the timer from the database with the given id
+/// Returns the amount of rows deleted
 pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Error> {
     let res = query!(
         "WITH deleted AS (
@@ -232,7 +233,8 @@ pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<Uuid, Error> {
     Ok(res)
 }
 
-//TODO: Make docs
+// TODO: make this server specific
+/// Returns a vector of all timers
 pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
     let res = query_as!(
         DbTimer,
