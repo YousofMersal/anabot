@@ -3,6 +3,7 @@ use std::{env, fmt, str::FromStr, sync::Arc};
 use chrono::{DateTime, Local};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
 use sqlx::{
+    migrate::MigrateDatabase,
     postgres::{PgConnectOptions, PgPoolOptions},
     query_as,
     types::Decimal,
@@ -163,11 +164,23 @@ pub async fn establish_db_connection() -> PgPool {
     let port_str = env::var("DB_PORT").unwrap_or_else(|_| "5432".to_string());
     let port;
     let host = env::var("DB_HOST").expect("Could not find environment variable DB_HOST");
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     if let Ok(p) = port_str.parse::<u16>() {
         port = p;
     } else {
         panic!("Could not parse the port number");
     };
+
+    if !sqlx::Postgres::database_exists(&db_url)
+        .await
+        .expect("Could not see if database exists")
+    {
+        sqlx::Postgres::create_database(&db_url)
+            .await
+            .expect("could not create database");
+    }
+
+    let migration = sqlx::migrate!("./migrations");
 
     let conn = PgConnectOptions::new()
         .username(&username)
@@ -176,19 +189,12 @@ pub async fn establish_db_connection() -> PgPool {
         .port(port)
         .database("anabot");
 
-    let mypool = PgPoolOptions::new()
-        .connect(conn)
+    let mypool = PgPoolOptions::new().connect_lazy_with(conn);
+
+    migration
+        .run(&mypool)
         .await
-        .expect("Could not create connection pool");
-
-    if let Ok(migration_report) = sqlx::migrate!("./migrations").run(&mypool).await {
-        println!("migration sucessfull: {:?}", migration_report);
-    };
-
-    //let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    //let mypool = PgPool::connect(&database_url)
-    //.await
-    //.expect("Could not create connection pool");
+        .expect("could not run migration");
 
     mypool
 }
