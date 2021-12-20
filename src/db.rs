@@ -2,13 +2,7 @@ use std::{env, fmt, str::FromStr, sync::Arc};
 
 use chrono::{DateTime, Local};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
-use sqlx::{
-    migrate::MigrateDatabase,
-    postgres::{PgConnectOptions, PgPoolOptions},
-    query_as,
-    types::Decimal,
-    Error, PgPool,
-};
+use sqlx::{migrate::MigrateDatabase, query_as, types::Decimal, Error, PgPool};
 use tokio_cron_scheduler::*;
 use uuid::Uuid;
 
@@ -159,17 +153,7 @@ impl TypeMapKey for Schedule {
 //TODO: Make docs
 //TODO: Make the bot migrate the database when starting up
 pub async fn establish_db_connection() -> PgPool {
-    let username = env::var("DB_USER").expect("Could not find environment variable DB_USER");
-    let pass = env::var("DB_PASS").expect("Could not find environment variable DB_PASS");
-    let port_str = env::var("DB_PORT").unwrap_or_else(|_| "5432".to_string());
-    let port;
-    let host = env::var("DB_HOST").expect("Could not find environment variable DB_HOST");
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    if let Ok(p) = port_str.parse::<u16>() {
-        port = p;
-    } else {
-        panic!("Could not parse the port number");
-    };
 
     if !sqlx::Postgres::database_exists(&db_url)
         .await
@@ -182,14 +166,9 @@ pub async fn establish_db_connection() -> PgPool {
 
     let migration = sqlx::migrate!("./migrations");
 
-    let conn = PgConnectOptions::new()
-        .username(&username)
-        .password(&pass)
-        .host(&host)
-        .port(port)
-        .database("anabot");
-
-    let mypool = PgPoolOptions::new().connect_lazy_with(conn);
+    let mypool = PgPool::connect(&db_url)
+        .await
+        .expect("could not connect to db");
 
     migration
         .run(&mypool)
