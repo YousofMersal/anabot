@@ -1,13 +1,22 @@
 # Anabot
-### Chronicles raid notification bot 
+### Raid notification bot 
 
 #### Get started developing
+To make the bot work these env variables must be present and set correctly
 
-To connect the bot with a discord application create a `.env` file at the root of the project.
-In this file add the line `TOKEN=<your token>` and replace `<your token>` with your discord bot token.
+- DISCORD_TOKEN 
+- APPLICATION_ID
+- DATABASE_URL
 
+Where `DISCORD_TOKEN` is the token of the discord bot, and where `APPLICATION_ID`,
+is the discord application ID. `DATABASE_URL` must be set to connect to a valid PostgreSQL database URI, as of now.
+Later plans are made for optional DBMS like MySQL or PostgreSQL and moving the default to SQLite.
 
-##### Unusual Dependency
-This repo depends on [Scheduler](https://git.yousoftware.live/Yousof/Scheduler) a modified version
-of and async cron scheduler library to work with system local time instead of UTC. It can be found [here](https://git.yousoftware.live/Yousof/Scheduler)
-hosted on my git server. Download it and place it somewhere on your system, remember to correct the relative path in the Cargo.toml if you do.
+If however you don't want to muddle your environment you can make a .env file with the same env variables,
+in the format of `DISCORD_TOKEN=<your token>` where`<your token>` is your token, separating them with a newline.
+The variables present in this file will override the environment variables for the application only.
+
+#### Host the bot
+
+A [docker hub](https://hub.docker.com/r/yousofmersal/anabot) image is available,
+which is updated on every release for easy deployment.
