@@ -1,6 +1,6 @@
 [package]
 name = "anabot"
-version = "0.5.0-alpha"
+version = "0.5.0-beta"
 authors = ["Yousof Mersal <yousofmersal@gmail.com>"]
 edition = "2021"
 
