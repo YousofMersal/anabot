@@ -288,7 +288,7 @@ pub async fn delete_timer(val: i32 ,pool: &PgPool) -> String {
     res.to_string()
 }
 
-#[allow(dead_code)]
+// TODO: Add one one-shot timer
 pub async fn register_commends(guildid: &GuildId, ctx: &Context) {
     guildid
         .create_application_command(&ctx.http, |command| {

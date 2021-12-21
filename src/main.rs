@@ -6,7 +6,6 @@ use handler::*;
 #[macro_use]
 extern crate sqlx;
 
-// TODO: Add logging
 use dotenv;
 use serenity::{http::Http, model::id::ChannelId, prelude::*};
 use tokio_cron_scheduler::JobScheduler;

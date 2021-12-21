@@ -68,6 +68,7 @@ impl FromStr for WeekDay {
     }
 }
 
+/// Data struct to represent a generic timer
 #[derive(Default, Clone)]
 pub struct Timer {
     pub id: i32,
@@ -80,6 +81,7 @@ pub struct Timer {
     pub uuid: Uuid,
 }
 
+/// Data struct to represent a generic in the database
 pub struct DbTimer {
     pub id: i32,
     pub title: String,
@@ -91,6 +93,7 @@ pub struct DbTimer {
     pub uuid: Uuid,
 }
 
+/// Data struct to represent a timer before being put in a database
 #[derive(Default, Clone)]
 pub struct NewTimer {
     pub title: String,
