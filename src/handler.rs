@@ -135,14 +135,16 @@ impl EventHandler for Handler {
 
                     res.to_string()
                 }
-                "timehelp" => "The time is a space seperated \"list\" of time units starting with the hour then minute then day, then optionally month and year.
-                    Named options are Day and Month which can be capitalized of not, and have the first 3 letters of the day/month.
-                    Resulting in a format that must be like so: **Hour Minute Day (Month) (Year)**;
-                a valid option looks as so **19 30 Thu 2021** which will make a message every Thursday at 19:30 for the whole of 2021.
-                    **Parentheses** denotes _optional_ time units, omitting an optional unit will default to doing it at every year/month.
-                    If multiple time slots are wanted a comma seperated list is also possible, bigger spans a \"-\" span can be used.
-                    To return to last example if for example the same timer needs to be fired twice on multiple days at the same time,
-                    it can be written like so: **19,18 30 Wed,Fri 6,7** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june and july."
+                "timehelp" => "The time is a space seperated \"list\" of time units starting with the hour then minute then day, then optionally a month. \
+                Named options are Day and Month which can be capitalized of not, and have the first 3 letters of the day/month. \
+                Resulting in a format that must be like so: **Hour Minute Day (Month)**; \
+                a valid option looks as so **19 30 Thu 4** which will make a message every Thursday at 19:30 for the whole of April. \
+                **Parentheses** denotes _optional_ time units, omitting an optional unit will default to doing it at every month.\n\
+                \nIf multiple time slots are wanted a comma seperated sub-list is also possible, bigger spans a \"-\" span can be used. \
+                \nTo return to last example if for example the same timer needs to be fired twice on multiple days at the same time, \
+                it can be written like so: **19,18 30 Wed,Fri 6-8** which will send a message at 18:30 and 19:30 every wednesday and friday in the months of june, july and august. \
+                Lastly if every possible value from a given spot is must be included a star * can be used.\n\
+                As an example \" 19 30 *\" will make a timer every day at 19:30"
                         .to_owned(),
                     "list" => {
                         let mut res = "Listing timers and their id's: \n".to_owned();
