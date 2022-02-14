@@ -20,6 +20,6 @@ regex = "1.5.4"
 
 [dependencies.serenity]
 git = "https://github.com/serenity-rs/serenity"
-version = "0.10.9"
+version = "0.10.10"
 default-features = false
 features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_api", "utils"]
