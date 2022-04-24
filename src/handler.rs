@@ -179,8 +179,6 @@ impl EventHandler for Handler {
                     let res;
                     let mut queue_removed = false;
                     if let Some(id) = &command_options[0].value {
-                        let i = id.as_f64().unwrap();
-                        println!("{i}");
                         if let Ok(parsed_val) = id.to_string().parse::<f64>(){
                                 let parsed_val = parsed_val as i32;
                             {
