@@ -2,9 +2,13 @@ use std::{env, fmt, str::FromStr, sync::Arc};
 
 use chrono::{DateTime, Local};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
-use sqlx::{migrate::MigrateDatabase, query_as, types::Decimal, Error, PgPool};
+use sqlx::{
+    migrate::MigrateDatabase,
+    query_as,
+    types::{Decimal, Uuid},
+    Error, PgPool,
+};
 use tokio_cron_scheduler::*;
-use uuid::Uuid;
 
 #[derive(Debug)]
 struct WeekError {
@@ -222,7 +226,7 @@ pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Erro
     Ok(res)
 }
 
-pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<Uuid, Error> {
+pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<sqlx::types::Uuid, Error> {
     let res = query!(
         r#"SELECT uuid
         FROM timers

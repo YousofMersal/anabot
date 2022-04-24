@@ -35,7 +35,7 @@ async fn main() {
         .parse()
         .expect("application id is not a valid id");
 
-    let mut client = Client::builder(&token)
+    let mut client = Client::builder(&token, GatewayIntents::empty())
         .event_handler(Handler)
         .application_id(application_id)
         .await
@@ -63,7 +63,7 @@ fn channel_raid_warn(time: NewTimer) {
         .unwrap_or_else(|e| {
             panic!("Error finding application id! {}", e);
         });
-    let http = Http::new_with_token_application_id(&token, id);
+    let http = Http::new_with_application_id(&token, id);
 
     let channel = ChannelId(time.channel);
 
@@ -103,5 +103,5 @@ fn establish_discord_connection() -> (serenity::http::Http, String) {
         panic!("Expected DISCORD_TOKEN env variable \nEither set DISCORD_TOKEN env variable or create an .env file with DISCORD_TOKEN set like so: \nDISCORD_TOKEN=<TOKEN>\n")
     };
 
-    (serenity::http::Http::new_with_token(&token), token)
+    (serenity::http::Http::new(&token), token)
 }

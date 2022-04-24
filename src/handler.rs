@@ -179,7 +179,10 @@ impl EventHandler for Handler {
                     let res;
                     let mut queue_removed = false;
                     if let Some(id) = &command_options[0].value {
-                        if let Ok(parsed_val) = id.to_string().parse::<i32>(){
+                        let i = id.as_f64().unwrap();
+                        println!("{i}");
+                        if let Ok(parsed_val) = id.to_string().parse::<f64>(){
+                                let parsed_val = parsed_val as i32;
                             {
                                 let data_read = &ctx.data.read().await;
 
@@ -189,7 +192,9 @@ impl EventHandler for Handler {
                                     .lock()
                                     .await;
 
+
                                 let timer_uuid = get_uuid(parsed_val, &data).await;
+
 
                                 if let Ok(is_uuid) = timer_uuid {
                                     if let Ok(_) = schedule.remove(&is_uuid) {
@@ -243,7 +248,7 @@ impl EventHandler for Handler {
 
         for r_guild in ready.guilds {
             //println!("{}",&r_guild;
-            register_commends(&r_guild.id(), &ctx).await;
+            register_commends(&r_guild.id, &ctx).await;
         }
 
 
