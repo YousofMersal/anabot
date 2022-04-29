@@ -2,12 +2,7 @@ use std::{env, fmt, str::FromStr, sync::Arc};
 
 use chrono::{DateTime, Local};
 use serenity::{futures::lock::Mutex, prelude::TypeMapKey};
-use sqlx::{
-    migrate::MigrateDatabase,
-    query_as,
-    types::{Decimal, Uuid},
-    Error, PgPool,
-};
+use sqlx::{migrate::MigrateDatabase, query_as, types::Uuid, Error, SqlitePool};
 use tokio_cron_scheduler::*;
 
 #[derive(Debug)]
@@ -75,7 +70,7 @@ impl FromStr for WeekDay {
 /// Data struct to represent a generic timer
 #[derive(Default, Clone)]
 pub struct Timer {
-    pub id: i32,
+    pub id: i64,
     pub title: String,
     pub body: Option<String>,
     pub recurring: bool,
@@ -87,13 +82,13 @@ pub struct Timer {
 
 /// Data struct to represent a generic in the database
 pub struct DbTimer {
-    pub id: i32,
+    pub id: i64,
     pub title: String,
     pub body: Option<String>,
     pub recurring: bool,
     pub raid_lead: Option<String>,
     pub time: String,
-    pub channel: Decimal,
+    pub channel: u64,
     pub uuid: Uuid,
 }
 
@@ -150,30 +145,30 @@ pub struct DB;
 pub struct Schedule;
 
 impl TypeMapKey for DB {
-    type Value = Arc<PgPool>;
+    type Value = Arc<SqlitePool>;
 }
 
 impl TypeMapKey for Schedule {
     type Value = Arc<Mutex<JobScheduler>>;
 }
 
-/// Connect to the the postgresql database defined in DB_URI
+/// Connect to the the sqlite database defined in DB_URI
 /// if no database exists it will be made on first connect
-pub async fn establish_db_connection() -> PgPool {
+pub async fn establish_db_connection() -> SqlitePool {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    if !sqlx::Postgres::database_exists(&db_url)
+    if !sqlx::Sqlite::database_exists(&db_url)
         .await
         .expect("Could not see if database exists")
     {
-        sqlx::Postgres::create_database(&db_url)
+        sqlx::Sqlite::create_database(&db_url)
             .await
             .expect("could not create database");
     }
 
     let migration = sqlx::migrate!("./migrations");
 
-    let mypool = PgPool::connect(&db_url)
+    let mypool = SqlitePool::connect(&db_url)
         .await
         .expect("could not connect to db");
 
@@ -186,31 +181,31 @@ pub async fn establish_db_connection() -> PgPool {
 }
 
 /// Add NewTimer to the database, and returns id as the Ok value
-pub async fn add_timer(pool: &PgPool, timer: &NewTimer) -> Result<i32, Error> {
+pub async fn add_timer(pool: &SqlitePool, timer: &NewTimer) -> Result<i32, Error> {
     let res = query_as!(
         DbTimer,
         r#"
-INSERT INTO timers (title, body, recurring, raid_lead, time, channel, uuid)
-Values ($1, $2, $3, $4, $5, $6, $7)
-RETURNING *"#,
+    INSERT INTO timers (title, body, recurring, raid_lead, time, channel, uuid)
+    Values ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING *"#,
         timer.title,
         timer.body,
         timer.recurring,
         timer.raid_lead,
         timer.time,
-        Decimal::from(timer.channel),
+        timer.channel,
         timer.uuid
     )
     .map(|t| t.id)
     .fetch_one(pool)
     .await?;
 
-    Ok(res)
+    Ok(3)
 }
 
 /// Delete the timer from the database with the given id
 /// Returns the amount of rows deleted
-pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Error> {
+pub async fn db_delete_timer(pool: &SqlitePool, id: i32) -> Result<Option<i64>, Error> {
     let res = query!(
         "WITH deleted AS (
         DELETE FROM timers
@@ -226,7 +221,7 @@ pub async fn db_delete_timer(pool: &PgPool, id: i32) -> Result<Option<i64>, Erro
     Ok(res)
 }
 
-pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<sqlx::types::Uuid, Error> {
+pub async fn get_uuid(id: i32, pool: &SqlitePool) -> Result<sqlx::types::Uuid, Error> {
     let res = query!(
         r#"SELECT uuid
         FROM timers
@@ -242,11 +237,11 @@ pub async fn get_uuid(id: i32, pool: &PgPool) -> Result<sqlx::types::Uuid, Error
 
 // TODO: make this server specific
 /// Returns a vector of all timers
-pub async fn get_timers(pool: &PgPool) -> Result<Vec<Timer>, Error> {
+pub async fn get_timers(pool: &SqlitePool) -> Result<Vec<Timer>, Error> {
     let res = query_as!(
         DbTimer,
-        "SELECT *
-        FROM timers"
+        r#"SELECT *
+        FROM timers"#
     )
     .map(|dbt| {
         let string = dbt.channel.to_string();

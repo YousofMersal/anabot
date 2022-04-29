@@ -1,6 +1,6 @@
 use tokio_cron_scheduler::Job;
 use serenity::model::id::GuildId;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use crate::db::*;
 
 use crate::channel_raid_warn;
@@ -277,7 +277,7 @@ impl EventHandler for Handler {
 }
 
 /// Takes and ID and a refference to a "pool" and, delets a row with the given ID
-pub async fn delete_timer(val: i32 ,pool: &PgPool) -> String {
+pub async fn delete_timer(val: i32 ,pool: &SqlitePool) -> String {
     let mut res: String = String::new();
 
     if let Ok(num) = db_delete_timer(pool, val).await {
